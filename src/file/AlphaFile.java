@@ -31,9 +31,12 @@ public class AlphaFile implements IFile {
         private long size;
         private List<HashMap<BlockManagerId, BlockId>> logicBlockList;
 
+        private long pointer;
+
         Meta(long size, ArrayList<HashMap<BlockManagerId, BlockId>> logicBlockList) {
             this.size = size;
             this.logicBlockList = logicBlockList;
+            this.pointer = 0;
         }
 
         @Override
@@ -57,7 +60,6 @@ public class AlphaFile implements IFile {
     private final AlphaFileManagerId fileManagerId;
     private final AlphaFileId fileId;
     private Meta meta;
-    private long pointer;
 
     // create new file under given file manager
     public AlphaFile(AlphaFileManagerId fileManagerId) {
@@ -66,7 +68,6 @@ public class AlphaFile implements IFile {
 
         this.fileManagerId = fileManagerId;
         this.fileId = getNewFileId();
-        this.pointer = 0;
         this.meta = new Meta(0, new ArrayList<>());
         writeMeta(this.meta);
     }
@@ -79,7 +80,6 @@ public class AlphaFile implements IFile {
         this.fileManagerId = fileManagerId;
         this.fileId = fileId;
         this.meta = readMeta();
-        this.pointer = 0;
     }
 
     // get id for new file,  add 1 to id count
@@ -132,7 +132,7 @@ public class AlphaFile implements IFile {
 
     // write data into blocks with duplication
     private void writeData(byte[] data) {
-        long newPos = pointer + data.length;
+        long newPos = meta.pointer + data.length;
         if (newPos > meta.size) {
             setSize(newPos);
         }
@@ -141,8 +141,8 @@ public class AlphaFile implements IFile {
 
         List<HashMap<BlockManagerId, BlockId>> logicBlockList = meta.logicBlockList;
 
-        int blockStartNum = (int) pointer / meta.blockSize;
-        int startOffset = (int) pointer % meta.blockSize;
+        int blockStartNum = (int) meta.pointer / meta.blockSize;
+        int startOffset = (int) meta.pointer % meta.blockSize;
         int iter = 0;
 
         for (int i = blockStartNum; i < logicBlockList.size(); ++i) {
@@ -161,7 +161,7 @@ public class AlphaFile implements IFile {
         }
 
         // update pointer
-        pointer += writeLength;
+        meta.pointer += writeLength;
     }
 
     // get meta object from meta file
@@ -183,13 +183,13 @@ public class AlphaFile implements IFile {
 
     // get data of given length from proper blocks
     private byte[] readData(int length) {
-        int readLength = (int) Math.min(length, meta.size - pointer);
+        int readLength = (int) Math.min(length, meta.size - meta.pointer);
 
         List<HashMap<BlockManagerId, BlockId>> logicBlockList = meta.logicBlockList;
 
         byte[] data = new byte[readLength];
-        int blockStartNum = (int) pointer / meta.blockSize;
-        int startOffset = (int) pointer % meta.blockSize;
+        int blockStartNum = (int) meta.pointer / meta.blockSize;
+        int startOffset = (int) meta.pointer % meta.blockSize;
         int iter = 0;
 
         for (int i = blockStartNum; i < logicBlockList.size(); ++i) {
@@ -217,7 +217,7 @@ public class AlphaFile implements IFile {
             if (!isAvailable)
                 throw new ErrorCode(ErrorCode.UNAVAILABLE_LOGIC_BLOCK);
         }
-        pointer += readLength;
+        meta.pointer += readLength;
         return data;
     }
 
@@ -225,7 +225,7 @@ public class AlphaFile implements IFile {
     private long getWhere(int where) {
         switch (where) {
             case MOVE_CURR:
-                return pointer;
+                return meta.pointer;
             case MOVE_HEAD:
                 return 0;
             case MOVE_TAIL:
@@ -249,14 +249,16 @@ public class AlphaFile implements IFile {
     public byte[] read(int length) {
         if (length < 0)
             throw new ErrorCode(ErrorCode.INVALID_READ_LENGTH);
+        move(0, MOVE_HEAD);
         return readData(length);
     }
 
     @Override
-    public void write(byte[] b) {
-        if (null == b)
+    public void write(byte[] bytes) {
+        if (null == bytes)
             throw new ErrorCode(ErrorCode.NULL_FILE_WRITE_IN_DATA);
-        writeData(b);
+        writeData(bytes);
+        writeMeta(meta);
     }
 
     @Override
@@ -269,7 +271,7 @@ public class AlphaFile implements IFile {
         if (pos < 0)
             throw new ErrorCode(ErrorCode.INVALID_POINTER_POS_UNDERFLOW);
 
-        pointer = pos;
+        meta.pointer = pos;
 
         return pos;
     }

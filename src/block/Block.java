@@ -40,6 +40,8 @@ public class Block implements IBlock {
 
     private final BlockManagerId blockManagerId;
     private final BlockId blockId;
+    private final Meta meta;
+    private final byte[] data;
 
     // get existing block under given block manager
     public Block(BlockManagerId blockManagerId, BlockId blockId) {
@@ -48,6 +50,8 @@ public class Block implements IBlock {
 
         this.blockManagerId = blockManagerId;
         this.blockId = blockId;
+        this.meta = readMeta();
+        this.data = readData();
     }
 
     // create new block with data under given block manager
@@ -60,8 +64,8 @@ public class Block implements IBlock {
         this.blockManagerId = blockManagerId;
         this.blockId = getNewBlockId();
 
-        writeMeta(bytes);
-        writeData(bytes);
+        this.meta = writeMeta(bytes);
+        this.data = writeData(bytes);
     }
 
     // put data into block size array
@@ -114,7 +118,7 @@ public class Block implements IBlock {
     }
 
     // write serialized meta info into meta file
-    private void writeMeta(byte[] data) {
+    private Meta writeMeta(byte[] data) {
         BlockManager blockManager = new BlockManager(blockManagerId);
         File file = new File(blockManager.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
 
@@ -130,6 +134,8 @@ public class Block implements IBlock {
             Meta meta = new Meta(SIZE, checksum);
             outputStream.writeObject(meta);
             outputStream.close();
+
+            return meta;
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION);
         } catch (NoSuchAlgorithmException e) {
@@ -138,7 +144,7 @@ public class Block implements IBlock {
     }
 
     // write data into data file
-    private void writeData(byte[] data) {
+    private byte[] writeData(byte[] data) {
         BlockManager blockManager = new BlockManager(blockManagerId);
         File file = new File(blockManager.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
 
@@ -146,6 +152,8 @@ public class Block implements IBlock {
             BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
             outputStream.write(data);
             outputStream.close();
+
+            return data;
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION);
         }
@@ -197,9 +205,6 @@ public class Block implements IBlock {
 
     @Override
     public byte[] read() {
-        Meta meta = readMeta();
-        byte[] data = readData();
-
         MessageDigest MD5;
 
         try {
