@@ -154,7 +154,15 @@ public class AlphaFileSystem {
         System.out.print(stringBuilder.toString());
     }
 
+    private static void checkConfig() {
+        if (ConfigConstants.BLOCK_MANAGER_NUM < ConfigConstants.DUPLICATION_NUM) {
+            throw new ErrorCode(ErrorCode.CONFIG_DUPLICATION_MORE_THAN_BLOCK_MANAGER);
+        }
+    }
+
     public static void main(String[] args) {
+        checkConfig();
+
         try {
             init();
             Scanner sc = new Scanner(System.in);

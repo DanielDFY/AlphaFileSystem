@@ -143,12 +143,12 @@ public class AlphaFile implements IFile {
 
         int blockStartNum = (int) meta.pointer / meta.blockSize;
         int startOffset = (int) meta.pointer % meta.blockSize;
-        int iter = 0;
 
         for (int i = blockStartNum; i < logicBlockList.size(); ++i) {
             HashMap<BlockManagerId, BlockId> logicBlockMap = logicBlockList.get(i);
 
             for (BlockManagerId blockManagerId : logicBlockMap.keySet()) {
+                int iter = 0;
                 IBlockManager blockManager = new BlockManager(blockManagerId);
                 byte[] bytes = blockManager.getBlock(logicBlockMap.get(blockManagerId)).read();
                 int startIndex = (i == blockStartNum) ? startOffset : 0;
@@ -156,7 +156,7 @@ public class AlphaFile implements IFile {
                     bytes[j] = data[iter++] ;
                 }
                 IBlock block = blockManager.newBlock(bytes);
-                logicBlockMap.put(blockManagerId, (BlockId)block.getIndexId());
+                logicBlockMap.replace(blockManagerId, (BlockId)block.getIndexId());
             }
         }
 
@@ -299,12 +299,15 @@ public class AlphaFile implements IFile {
             int newBlockNum = ceil - meta.logicBlockList.size();
             for (int i = 0; i < newBlockNum; ++i) {
                 HashMap<BlockManagerId, BlockId> newBlockMap = new HashMap<>();
-                meta.logicBlockList.add(newBlockMap);
                 for (int j = 0; j < ConfigConstants.DUPLICATION_NUM; ++j) {
-                    BlockManager blockManager = BlockManager.getRandomBlockManager();
+                    BlockManager blockManager;
+                    do {
+                        blockManager = BlockManager.getRandomBlockManager();
+                    } while (newBlockMap.containsKey(blockManager.getManagerId()));
                     IBlock block = blockManager.newEmptyBlock(meta.blockSize);
                     newBlockMap.put(blockManager.getManagerId(), (BlockId)block.getIndexId());
                 }
+                meta.logicBlockList.add(newBlockMap);
             }
         }
     }

@@ -57,6 +57,9 @@ public class ErrorCode extends RuntimeException {
     public static final int INVALID_FIELD_ID_ARG = 35;
     public static final int UNKNOWN_FIELD_ID = 36;
 
+    // Config
+    public static final int CONFIG_DUPLICATION_MORE_THAN_BLOCK_MANAGER = 37;
+
     // UNKNOWN
     public static final int UNKNOWN = 1000;
 
@@ -115,6 +118,9 @@ public class ErrorCode extends RuntimeException {
         ErrorCodeMap.put(FILE_MANAGER_META_FILE_INVALID, "Invalid file manager meta file");
         ErrorCodeMap.put(INVALID_FIELD_ID_ARG, "Invalid field id argument");
         ErrorCodeMap.put(UNKNOWN_FIELD_ID, "Unknown field id");
+
+        // Config
+        ErrorCodeMap.put(CONFIG_DUPLICATION_MORE_THAN_BLOCK_MANAGER, "Duplication should be less than block managers");
 
         ErrorCodeMap.put(UNKNOWN, "Unknown exception");
     }
