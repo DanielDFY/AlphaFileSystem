@@ -1,10 +1,10 @@
 package file;
 
+import block.Block;
 import block.BlockId;
 import block.BlockManager;
 import block.BlockManagerId;
-import block.IBlock;
-import block.IBlockManager;
+import block.BlockManagerServer;
 import constant.ConfigConstants;
 import constant.PathConstants;
 import util.ByteUtils;
@@ -99,7 +99,7 @@ public class AlphaFile implements IFile {
             // increase id count
             newFileIdNum = ByteUtils.bytesToLong(bytes) + 1;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         try {
@@ -109,7 +109,7 @@ public class AlphaFile implements IFile {
             outputStream.write(bytes);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         return new AlphaFileId(PathConstants.FILE_PREFIX + newFileIdNum);
@@ -126,7 +126,7 @@ public class AlphaFile implements IFile {
             outputStream.writeObject(meta);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
     }
 
@@ -149,14 +149,14 @@ public class AlphaFile implements IFile {
 
             for (BlockManagerId blockManagerId : logicBlockMap.keySet()) {
                 int iter = 0;
-                IBlockManager blockManager = new BlockManager(blockManagerId);
+                BlockManager blockManager = new BlockManager(blockManagerId);
                 byte[] bytes = blockManager.getBlock(logicBlockMap.get(blockManagerId)).read();
                 int startIndex = (i == blockStartNum) ? startOffset : 0;
                 for (int j = startIndex; j < bytes.length && iter < writeLength; ++j) {
                     bytes[j] = data[iter++] ;
                 }
-                IBlock block = blockManager.newBlock(bytes);
-                logicBlockMap.replace(blockManagerId, (BlockId)block.getIndexId());
+                Block block = blockManager.newBlock(bytes);
+                logicBlockMap.put(blockManagerId, block.getIndexId());
             }
         }
 
@@ -175,7 +175,7 @@ public class AlphaFile implements IFile {
             inputStream.close();
             return meta;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (ClassNotFoundException e) {
             throw new ErrorCode(ErrorCode.FILE_META_FILE_INVALID);
         }
@@ -200,8 +200,8 @@ public class AlphaFile implements IFile {
                 int tempIter = iter;
 
                 try {
-                    IBlockManager blockManager = new BlockManager(blockManagerId);
-                    IBlock block = blockManager.getBlock(logicBlockMap.get(blockManagerId));
+                    BlockManager blockManager = new BlockManager(blockManagerId);
+                    Block block = blockManager.getBlock(logicBlockMap.get(blockManagerId));
                     byte[] bytes = block.read();
                     int startIndex = (i == blockStartNum) ? startOffset : 0;
                     for (int j = startIndex; j < bytes.length && tempIter < readLength; ++j) {
@@ -294,20 +294,23 @@ public class AlphaFile implements IFile {
         meta.size = newSize;
         int ceil = (meta.size == 0) ? 0 : (int) meta.size / meta.blockSize + 1;
         if (ceil < meta.logicBlockList.size()) {
+            // truncate redundant blocks
             meta.logicBlockList = meta.logicBlockList.subList(0, ceil);
         } else if (ceil > meta.logicBlockList.size()) {
+            // create placeholders for data writing
             int newBlockNum = ceil - meta.logicBlockList.size();
             for (int i = 0; i < newBlockNum; ++i) {
                 HashMap<BlockManagerId, BlockId> newBlockMap = new HashMap<>();
+                meta.logicBlockList.add(newBlockMap);
                 for (int j = 0; j < ConfigConstants.DUPLICATION_NUM; ++j) {
+                    // duplications are allocated to different serving block managers
                     BlockManager blockManager;
                     do {
-                        blockManager = BlockManager.getRandomBlockManager();
+                        blockManager = BlockManagerServer.getRandomServingBlockManager();
                     } while (newBlockMap.containsKey(blockManager.getManagerId()));
-                    IBlock block = blockManager.newEmptyBlock(meta.blockSize);
-                    newBlockMap.put(blockManager.getManagerId(), (BlockId)block.getIndexId());
+                    Block block = (Block) blockManager.newEmptyBlock(meta.blockSize);
+                    newBlockMap.put(blockManager.getManagerId(), block.getIndexId());
                 }
-                meta.logicBlockList.add(newBlockMap);
             }
         }
     }

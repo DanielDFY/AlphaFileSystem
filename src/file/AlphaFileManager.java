@@ -51,6 +51,7 @@ public class AlphaFileManager implements IFileManager {
 
         // initialize new meta file with empty file map
         writeMeta(new Meta(new HashMap<>()));
+        AlphaFileManagerController.addManager(this.fileManagerId);
     }
 
     // get existing file manager
@@ -78,7 +79,7 @@ public class AlphaFileManager implements IFileManager {
             // increase id count
             newFileManagerIdNum = ByteUtils.bytesToLong(bytes) + 1;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         try {
@@ -88,7 +89,7 @@ public class AlphaFileManager implements IFileManager {
             outputStream.write(bytes);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         return new AlphaFileManagerId(PathConstants.FILE_MANAGER_PREFIX + newFileManagerIdNum);
@@ -103,7 +104,7 @@ public class AlphaFileManager implements IFileManager {
             outputStream.writeObject(meta);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
     }
 
@@ -117,7 +118,7 @@ public class AlphaFileManager implements IFileManager {
             inputStream.close();
             return meta;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (ClassNotFoundException e) {
             throw new ErrorCode(ErrorCode.FILE_MANAGER_META_FILE_INVALID);
         }
@@ -127,14 +128,17 @@ public class AlphaFileManager implements IFileManager {
     private void init() {
         File dir = new File(PathConstants.FILE_MANAGER_PATH, fileManagerId.getId());
         if (!dir.mkdir())
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, dir.getPath());
     }
 
     @Override
     public IFile getFile(Id id) {
+        if (!AlphaFileManagerController.isServing(fileManagerId)) {
+            throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING, fileManagerId.getId());
+        }
+
         if (null == id)
             throw new ErrorCode(ErrorCode.NULL_FIELD_ID);
-
         if (id.getClass() != FieldId.class)
             throw new ErrorCode(ErrorCode.INVALID_FIELD_ID_ARG);
 
@@ -144,13 +148,17 @@ public class AlphaFileManager implements IFileManager {
         Map<FieldId, AlphaFileId> fileMap = meta.fileMap;
 
         if (!fileMap.containsKey(fieldId))
-            throw new ErrorCode(ErrorCode.UNKNOWN_FIELD_ID);
+            throw new ErrorCode(ErrorCode.UNKNOWN_FIELD_ID, fieldId.getId());
         else
             return new AlphaFile(this.fileManagerId, fileMap.get(fieldId));
     }
 
     @Override
     public IFile newFile(Id id) {
+        if (!AlphaFileManagerController.isServing(fileManagerId)) {
+            throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING, fileManagerId.getId());
+        }
+
         if (null == id)
             throw new ErrorCode(ErrorCode.NULL_FIELD_ID);
 

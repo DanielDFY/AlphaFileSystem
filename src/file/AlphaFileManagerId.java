@@ -32,10 +32,10 @@ public class AlphaFileManagerId implements Id, Serializable {
             // check id
             currentFileManagerId = ByteUtils.bytesToLong(bytes);
             if (currentFileManagerId < idNum)
-                throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_ID);
+                throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_ID, id);
 
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         this.id = id;

@@ -1,8 +1,10 @@
 import block.Block;
+import block.BlockClientId;
 import block.BlockId;
-import block.BlockManager;
+import block.BlockManagerClient;
+import block.BlockManagerClientId;
 import block.BlockManagerId;
-import block.IBlock;
+import block.BlockManagerServer;
 import constant.ConfigConstants;
 import constant.PathConstants;
 import file.AlphaFileManager;
@@ -12,47 +14,22 @@ import file.IFile;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.util.Scanner;
 
 public class AlphaFileSystem {
     private static void init() {
         File systemDir = new File(PathConstants.SystemPath);
-        if (systemDir.exists())
-            return;
-
-        if (!systemDir.mkdir()) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+        if (!systemDir.exists()) {
+            if (!systemDir.mkdir()) {
+                throw new ErrorCode(ErrorCode.IO_EXCEPTION, systemDir.getPath());
+            }
         }
 
-        File blockManagerDir = new File(PathConstants.BLOCK_MANAGER_PATH);
-        if (!blockManagerDir.mkdir()) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
-        }
-
-        File blockCount = new File(PathConstants.BLOCK_MANAGER_PATH, PathConstants.BLOCK_ID_COUNT);
-        try {
-            BufferedOutputStream inputStream = new BufferedOutputStream(new FileOutputStream(blockCount));
-            inputStream.write(ByteUtils.longToBytes(0));
-            inputStream.close();
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-        }
-
-        File blockManagerCount = new File(PathConstants.BLOCK_MANAGER_PATH, PathConstants.BLOCK_MANAGER_ID_COUNT);
-        try {
-            BufferedOutputStream inputStream = new BufferedOutputStream(new FileOutputStream(blockManagerCount));
-            inputStream.write(ByteUtils.longToBytes(0));
-            inputStream.close();
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-        }
-
+        /*
         File fileManagerDir = new File(PathConstants.FILE_MANAGER_PATH);
         if (!fileManagerDir.mkdir()) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, fileManagerDir.getPath());
         }
 
         File fileCount = new File(PathConstants.FILE_MANAGER_PATH, PathConstants.FILE_ID_COUNT);
@@ -73,14 +50,22 @@ public class AlphaFileSystem {
             System.out.println(e.getMessage());
         }
 
+         */
 
-        for (int i = 0; i < ConfigConstants.BLOCK_MANAGER_NUM; ++i) {
-            new BlockManager();
-        }
+        // todo
+        // init server
+        BlockManagerServer.init();
 
+        /*
         for (int i = 0; i < ConfigConstants.FILE_MANAGER_NUM; ++i) {
             new AlphaFileManager();
         }
+
+         */
+    }
+
+    private static void terminate() {
+        BlockManagerServer.terminateRMI();
     }
 
     private static void catFile(AlphaFileManagerId fileManagerId, FieldId fieldId) {
@@ -96,7 +81,7 @@ public class AlphaFileSystem {
 
     private static void hexBlock(BlockManagerId blockManagerId, BlockId blockId) {
         try {
-            IBlock block = new Block(blockManagerId, blockId);
+            Block block = new Block(blockManagerId, blockId);
             byte[] data = block.read();
             System.out.println(ByteUtils.bytesToHexStr(data));
         } catch (ErrorCode e) {
@@ -160,11 +145,33 @@ public class AlphaFileSystem {
         }
     }
 
+    private static void bmServerTest() {
+        long start, end;
+
+        BlockManagerId id = new BlockManagerId("bm1");
+        BlockManagerClientId blockManagerClientId = new BlockManagerClientId("localhost", id.getId());
+        BlockManagerClient blockManagerClient = BlockManagerClient.getClient(blockManagerClientId);
+
+        start = System.currentTimeMillis();
+        Block block = blockManagerClient.getBlock(new BlockClientId(1));
+        end = System.currentTimeMillis();
+        System.out.println("time: " + (end - start) + "ms");
+        System.out.println(new String(block.read()));
+    }
+
     public static void main(String[] args) {
         checkConfig();
 
         try {
             init();
+
+            BlockManagerId id = new BlockManagerId("bm1");
+            BlockManagerServer blockManagerServer = BlockManagerServer.getServer(id);
+            BlockManagerServer.startManager(id);
+            blockManagerServer.newBlock("hello".getBytes());
+            BlockManagerClientId blockManagerClientId = new BlockManagerClientId("localhost", id.getId());
+            BlockManagerClient.addClient(blockManagerClientId);
+
             Scanner sc = new Scanner(System.in);
             System.out.println("Please input command:");
             while (sc.hasNext()) {
@@ -210,7 +217,11 @@ public class AlphaFileSystem {
                         printHelp();
                         break;
                     case "quit":
+                        terminate();
                         return;
+                    case "bmServer-test":
+                        bmServerTest();
+                        break;
                     default:
                         System.out.println("Please input 'help' for command formats.\n");
                 }

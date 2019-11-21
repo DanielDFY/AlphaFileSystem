@@ -18,12 +18,16 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-public class Block implements IBlock {
+public class Block implements IBlock, Serializable {
+    private static final long serialVersionUID = -669111775113682194L;
+
     // set block size by config
     private final static int SIZE = ConfigConstants.BLOCK_SIZE;
 
     // block meta info
     private static class Meta implements Serializable {
+        private static final long serialVersionUID = 4023762168474307036L;
+
         private final int size;
         private final String checksum;
 
@@ -101,7 +105,7 @@ public class Block implements IBlock {
             // increase id count
             newBlockId = ByteUtils.bytesToLong(bytes) + 1;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         try {
@@ -111,7 +115,7 @@ public class Block implements IBlock {
             outputStream.write(bytes);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         return new BlockId(newBlockId);
@@ -137,7 +141,7 @@ public class Block implements IBlock {
 
             return meta;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (NoSuchAlgorithmException e) {
             throw new ErrorCode(ErrorCode.MD5_INVALID);
         }
@@ -155,7 +159,7 @@ public class Block implements IBlock {
 
             return data;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
     }
 
@@ -170,7 +174,7 @@ public class Block implements IBlock {
             inputStream.close();
             return meta;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (ClassNotFoundException e) {
             throw new ErrorCode(ErrorCode.BLOCK_META_FILE_INVALID);
         }
@@ -189,7 +193,7 @@ public class Block implements IBlock {
             inputStream.close();
             return bytes;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
     }
 
@@ -199,7 +203,7 @@ public class Block implements IBlock {
     }
 
     @Override
-    public IBlockManager getBlockManager() {
+    public BlockManager getBlockManager() {
         return new BlockManager(blockManagerId);
     }
 

@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.Serializable;
 
 public class BlockId implements Id, Serializable {
+    private static final long serialVersionUID = 1400102679280615290L;
+
     private final long id;
 
     public BlockId(long id) {
@@ -30,10 +32,10 @@ public class BlockId implements Id, Serializable {
             // check id
             currentBlockId = ByteUtils.bytesToLong(bytes);
             if (currentBlockId < id)
-                throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_ID);
+                throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_ID, String.valueOf(id));
 
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         this.id = id;

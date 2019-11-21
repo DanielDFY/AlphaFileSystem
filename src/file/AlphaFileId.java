@@ -32,10 +32,10 @@ public class AlphaFileId implements Id, Serializable {
             // check id
             currentFileId = ByteUtils.bytesToLong(bytes);
             if (currentFileId < idNum)
-                throw new ErrorCode(ErrorCode.UNKNOWN_FILE_ID);
+                throw new ErrorCode(ErrorCode.UNKNOWN_FILE_ID, id);
 
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         this.id = id;

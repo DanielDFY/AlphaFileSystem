@@ -22,6 +22,8 @@ public class BlockManager implements IBlockManager {
 
     // block manager meta info
     private static class Meta implements Serializable {
+        private static final long serialVersionUID = -8399497222255914720L;
+
         private final Set<BlockId> blockSet;    // record owned blocks
 
         Meta(Set<BlockId> blockSet) {
@@ -75,7 +77,7 @@ public class BlockManager implements IBlockManager {
             // increase id count
             newBlockManagerIdNum = ByteUtils.bytesToLong(bytes) + 1;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         try {
@@ -85,7 +87,7 @@ public class BlockManager implements IBlockManager {
             outputStream.write(bytes);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
 
         return new BlockManagerId(PathConstants.BLOCK_MANAGER_PREFIX + newBlockManagerIdNum);
@@ -100,7 +102,7 @@ public class BlockManager implements IBlockManager {
             outputStream.writeObject(meta);
             outputStream.close();
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
     }
 
@@ -114,7 +116,7 @@ public class BlockManager implements IBlockManager {
             inputStream.close();
             return meta;
         } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (ClassNotFoundException e) {
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_META_FILE_INVALID);
         }
@@ -124,11 +126,11 @@ public class BlockManager implements IBlockManager {
     private void init() {
         File dir = new File(PathConstants.BLOCK_MANAGER_PATH, blockManagerId.getId());
         if (!dir.mkdir())
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
+            throw new ErrorCode(ErrorCode.IO_EXCEPTION, dir.getPath());
     }
 
     @Override
-    public IBlock getBlock(Id indexId) {
+    public Block getBlock(Id indexId) {
         if (null == indexId)
             throw new ErrorCode(ErrorCode.NULL_BLOCK_ID_ARG);
         if (indexId.getClass() != BlockId.class)
@@ -140,13 +142,13 @@ public class BlockManager implements IBlockManager {
         Set<BlockId> blockSet = meta.blockSet;
 
         if (!blockSet.contains(blockId))
-            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_INDEX_ID);
+            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_INDEX_ID, String.valueOf(blockId.getId()));
         else
             return new Block(this.blockManagerId, blockId);
     }
 
     @Override
-    public IBlock newBlock(byte[] b) {
+    public Block newBlock(byte[] b) {
         if (null == b)
             throw new ErrorCode(ErrorCode.NULL_NEW_BLOCK_DATA);
         Block block = new Block(this.blockManagerId, b);
@@ -166,25 +168,5 @@ public class BlockManager implements IBlockManager {
     @Override
     public BlockManagerId getManagerId() {
         return blockManagerId;
-    }
-
-    // randomly choose an existing block manager
-    public static BlockManager getRandomBlockManager() {
-        File file = new File(PathConstants.BLOCK_MANAGER_PATH, PathConstants.BLOCK_MANAGER_ID_COUNT);
-        long blockManagerNum;
-
-        try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
-            byte[] bytes = new byte[Long.BYTES];
-            if (inputStream.read(bytes) != bytes.length)
-                throw new ErrorCode(ErrorCode.INVALID_BLOCK_MANAGER_ID);
-            inputStream.close();
-            blockManagerNum = ByteUtils.bytesToLong(bytes);
-        } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION);
-        }
-
-        long randomBlockManagerId = (long) (Math.random() * blockManagerNum) + 1;   // + 1 for id number starts from 1
-        return new BlockManager(new BlockManagerId(PathConstants.BLOCK_MANAGER_PREFIX + randomBlockManagerId));
     }
 }
