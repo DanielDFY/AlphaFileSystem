@@ -3,8 +3,11 @@ package file;
 import block.Block;
 import block.BlockId;
 import block.BlockManager;
+import block.BlockManagerClient;
+import block.BlockManagerClientId;
 import block.BlockManagerId;
 import block.BlockManagerServer;
+import block.IBlockManager;
 import constant.ConfigConstants;
 import constant.PathConstants;
 import util.ByteUtils;
@@ -23,9 +26,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class AlphaFile implements IFile {
+public class AlphaFile implements IFile, Serializable {
+    private static final long serialVersionUID = -6937137948304956403L;
+
     // file meta info
     private static class Meta implements Serializable {
+        private static final long serialVersionUID = 2533912448887277622L;
+
         private final int blockSize = ConfigConstants.BLOCK_SIZE;
 
         private long size;
@@ -58,28 +65,40 @@ public class AlphaFile implements IFile {
     }
 
     private final AlphaFileManagerId fileManagerId;
+    private final FieldId fieldId;
     private final AlphaFileId fileId;
     private Meta meta;
 
+    private boolean isClient;
+    private String hostName;
+
     // create new file under given file manager
-    public AlphaFile(AlphaFileManagerId fileManagerId) {
+    public AlphaFile(AlphaFileManagerId fileManagerId, FieldId fieldId) {
         if (null == fileManagerId)
             throw new ErrorCode(ErrorCode.NULL_FILE_ARGUMENT);
 
         this.fileManagerId = fileManagerId;
+        this.fieldId = fieldId;
         this.fileId = getNewFileId();
         this.meta = new Meta(0, new ArrayList<>());
         writeMeta(this.meta);
+
+        this.isClient = false;
+        this.hostName = null;
     }
 
     // get existing file under given file manager
-    public AlphaFile(AlphaFileManagerId fileManagerId, AlphaFileId fileId) {
+    public AlphaFile(AlphaFileManagerId fileManagerId, AlphaFileId fileId, FieldId fieldId) {
         if (null == fileManagerId || null == fileId)
             throw new ErrorCode(ErrorCode.NULL_FILE_ARGUMENT);
 
         this.fileManagerId = fileManagerId;
+        this.fieldId = fieldId;
         this.fileId = fileId;
         this.meta = readMeta();
+
+        this.isClient = false;
+        this.hostName = null;
     }
 
     // get id for new file,  add 1 to id count
@@ -117,16 +136,22 @@ public class AlphaFile implements IFile {
 
     // write serialized meta info into meta file
     private void writeMeta(Meta meta) {
-        AlphaFileManager fileManager = new AlphaFileManager(fileManagerId);
-        File file = new File(fileManager.getPath(), fileId.getId() + PathConstants.META_SUFFIX);
+        if (isClient) {
+            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
+            AlphaFileManagerClient fileManager = new AlphaFileManagerClient(fileManagerClientId);
+            fileManager.writeRemoteFileMeta(fieldId, this);
+        } else {
+            IFileManager fileManager = new AlphaFileManagerServer(fileManagerId);
+            File file = new File(fileManager.getPath(), fileId.getId() + PathConstants.META_SUFFIX);
 
-        try {
-            // write meta object into meta file
-            ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(file));
-            outputStream.writeObject(meta);
-            outputStream.close();
-        } catch (IOException e) {
-            throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
+            try {
+                // write meta object into meta file
+                ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(file));
+                outputStream.writeObject(meta);
+                outputStream.close();
+            } catch (IOException e) {
+                throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
+            }
         }
     }
 
@@ -149,13 +174,19 @@ public class AlphaFile implements IFile {
 
             for (BlockManagerId blockManagerId : logicBlockMap.keySet()) {
                 int iter = 0;
-                BlockManager blockManager = new BlockManager(blockManagerId);
+                IBlockManager blockManager;
+                if (isClient) {
+                    BlockManagerClientId blockManagerClientId = new BlockManagerClientId(hostName, blockManagerId.getId());
+                    blockManager = new BlockManagerClient(blockManagerClientId);
+                } else {
+                    blockManager = new BlockManagerServer(blockManagerId);
+                }
                 byte[] bytes = blockManager.getBlock(logicBlockMap.get(blockManagerId)).read();
                 int startIndex = (i == blockStartNum) ? startOffset : 0;
                 for (int j = startIndex; j < bytes.length && iter < writeLength; ++j) {
                     bytes[j] = data[iter++] ;
                 }
-                Block block = blockManager.newBlock(bytes);
+                Block block = (Block) blockManager.newBlock(bytes);
                 logicBlockMap.put(blockManagerId, block.getIndexId());
             }
         }
@@ -166,7 +197,14 @@ public class AlphaFile implements IFile {
 
     // get meta object from meta file
     private Meta readMeta() {
-        AlphaFileManager fileManager = new AlphaFileManager(fileManagerId);
+        IFileManager fileManager;
+        if (isClient) {
+            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
+            fileManager = new AlphaFileManagerClient(fileManagerClientId);
+        } else {
+            fileManager = new AlphaFileManagerServer(fileManagerId);
+        }
+
         File file = new File(fileManager.getPath(), fileId.getId() + PathConstants.META_SUFFIX);
 
         try {
@@ -200,8 +238,15 @@ public class AlphaFile implements IFile {
                 int tempIter = iter;
 
                 try {
-                    BlockManager blockManager = new BlockManager(blockManagerId);
-                    Block block = blockManager.getBlock(logicBlockMap.get(blockManagerId));
+                    IBlockManager blockManager;
+                    if (isClient) {
+                        BlockManagerClientId blockManagerClientId = new BlockManagerClientId(hostName, blockManagerId.getId());
+                        blockManager = new BlockManagerClient(blockManagerClientId);
+                    } else {
+                        blockManager = new BlockManagerServer(blockManagerId);
+                    }
+
+                    Block block = (Block) blockManager.getBlock(logicBlockMap.get(blockManagerId));
                     byte[] bytes = block.read();
                     int startIndex = (i == blockStartNum) ? startOffset : 0;
                     for (int j = startIndex; j < bytes.length && tempIter < readLength; ++j) {
@@ -242,14 +287,18 @@ public class AlphaFile implements IFile {
 
     @Override
     public IFileManager getFileManager() {
-        return new AlphaFileManager(fileManagerId);
+        if (isClient) {
+            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
+            return new AlphaFileManagerClient(fileManagerClientId);
+        } else {
+            return new AlphaFileManagerServer(fileManagerId);
+        }
     }
 
     @Override
     public byte[] read(int length) {
         if (length < 0)
             throw new ErrorCode(ErrorCode.INVALID_READ_LENGTH);
-        move(0, MOVE_HEAD);
         return readData(length);
     }
 
@@ -291,6 +340,13 @@ public class AlphaFile implements IFile {
         if (newSize < 0)
             throw new ErrorCode(ErrorCode.NEGATIVE_FILE_NEW_SIZE);
 
+        if (isClient) {
+            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
+            AlphaFileManagerClient fileManager = new AlphaFileManagerClient(fileManagerClientId);
+            meta = fileManager.setRemoteFileSize(fieldId, newSize).meta;
+            return;
+        }
+
         meta.size = newSize;
         int ceil = (meta.size == 0) ? 0 : (int) meta.size / meta.blockSize + 1;
         if (ceil < meta.logicBlockList.size()) {
@@ -328,5 +384,15 @@ public class AlphaFile implements IFile {
         // copy meta info immediately
         copyDst.meta = meta;
         copyDst.close();
+    }
+
+    public void setRemote(String hostName) {
+        this.isClient = true;
+        this.hostName = hostName;
+    }
+
+    public void setLocal() {
+        this.isClient = false;
+        this.hostName = null;
     }
 }

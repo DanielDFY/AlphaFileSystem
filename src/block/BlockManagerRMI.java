@@ -2,7 +2,6 @@ package block;
 
 import util.ErrorCode;
 
-import java.rmi.NoSuchObjectException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 
@@ -14,7 +13,7 @@ public class BlockManagerRMI extends UnicastRemoteObject implements IBlockManage
     @Override
     public IBlock getBlockRMI(String blockManagerIdStr, long blockIdNum) {
         if (null == blockManagerIdStr || 0 == blockIdNum)
-            throw new ErrorCode(ErrorCode.NULL_BLOCK_RMI_ID_ARG);
+            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
 
         BlockManagerId blockManagerId = new BlockManagerId(blockManagerIdStr);
         IBlockManager blockManagerServer = BlockManagerServer.getServer(blockManagerId);
@@ -30,7 +29,7 @@ public class BlockManagerRMI extends UnicastRemoteObject implements IBlockManage
             throw new ErrorCode(ErrorCode.NULL_BLOCK_RMI_DATA_ARG);
 
         if (null == blockManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_BLOCK_RMI_ID_ARG);
+            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
 
         BlockManagerId blockManagerId = new BlockManagerId(blockManagerIdStr);
         IBlockManager blockManagerServer = BlockManagerServer.getServer(blockManagerId);
@@ -41,20 +40,11 @@ public class BlockManagerRMI extends UnicastRemoteObject implements IBlockManage
     @Override
     public String getPathRMI(String blockManagerIdStr) {
         if (null == blockManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_BLOCK_RMI_ID_ARG);
+            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
 
         BlockManagerId blockManagerId = new BlockManagerId(blockManagerIdStr);
         IBlockManager blockManagerServer = BlockManagerServer.getServer(blockManagerId);
 
         return blockManagerServer.getPath();
-    }
-
-    @Override
-    public void terminate() throws RemoteException {
-        try {
-            UnicastRemoteObject.unexportObject(this, true);
-        } catch (NoSuchObjectException e) {
-            throw new RemoteException(e.getMessage());
-        }
     }
 }

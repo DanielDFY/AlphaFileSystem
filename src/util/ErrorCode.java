@@ -59,45 +59,66 @@ public class ErrorCode extends RuntimeException {
 
     // Config
     public static final int CONFIG_DUPLICATION_MORE_THAN_BLOCK_MANAGER = 37;
+    public static final int FAILED_TO_SET_SOCKET_TIMEOUT = 38;
 
     // Block Manager RMI
-    public static final int NULL_BLOCK_RMI_ID_ARG = 38;
-    public static final int NULL_BLOCK_RMI_DATA_ARG = 39;
-    public static final int TERMINATE_UNKNOWN_BLOCK_RMI = 40;
+    public static final int NULL_BLOCK_MANAGER_RMI_ID_ARG = 39;
+    public static final int NULL_BLOCK_RMI_DATA_ARG = 40;
+    public static final int TERMINATE_UNKNOWN_BLOCK_RMI = 41;
 
     // Block Manager Server
-    public static final int NULL_BLOCK_MANAGER_SERVER_ID = 41;
-    public static final int EXISTING_BLOCK_MANAGER_SERVER_ID = 42;
+    public static final int NULL_BLOCK_MANAGER_SERVER_ID = 42;
     public static final int UNKNOWN_BLOCK_MANAGER_SERVER_ID = 43;
-    public static final int BLOCK_MANAGER_NOT_SERVING = 44;
-    public static final int BLOCK_MANAGER_NO_SERVING = 45;
-    public static final int BLOCK_MANAGER_SERVER_LAUNCH_FAILURE = 46;
-    public static final int ALREADY_BOUND_BLOCK_RMI = 47;
-    public static final int LACKING_SERVER_FOR_DUPLICATION = 48;
-    public static final int UNKNOWN_BLOCK_MANAGER_SERVER_EXCEPTION = 49;
+    public static final int EXISTING_BLOCK_MANAGER_SERVER_ID = 44;
+    public static final int BLOCK_MANAGER_NOT_SERVING = 45;
+    public static final int BLOCK_MANAGER_NO_SERVING = 46;
+    public static final int BLOCK_MANAGER_SERVER_LAUNCH_FAILURE = 47;
+    public static final int ALREADY_BOUND_BLOCK_RMI = 48;
+    public static final int LACKING_SERVER_FOR_DUPLICATION = 49;
+    public static final int UNKNOWN_BLOCK_MANAGER_SERVER_EXCEPTION = 50;
 
     // Block Manager Client Id
-    public static final int NULL_BLOCK_MANAGER_CLIENT_ID_ARG = 50;
+    public static final int NULL_BLOCK_MANAGER_CLIENT_ID_ARG = 51;
 
     // Block Client Id
-    public static final int BLOCK_CLIENT_INVALID_BLOCK_ID = 51;
+    public static final int BLOCK_CLIENT_INVALID_BLOCK_ID = 52;
 
     // Block Manager Client
-    public static final int BLOCK_MANAGER_CLIENT_CONNECT_FAILURE = 52;
-    public static final int NOT_BOUND_BLOCK_RMI = 53;
-    public static final int BLOCK_MANAGER_CLIENT_REMOTE_EXCEPTION = 54;
-    public static final int FAILED_TO_SET_SOCKET_TIMEOUT = 55;
+    public static final int BLOCK_MANAGER_CLIENT_CONNECT_FAILURE = 53;
+    public static final int NOT_BOUND_BLOCK_RMI = 54;
+    public static final int BLOCK_MANAGER_CLIENT_REMOTE_EXCEPTION = 55;
     public static final int NULL_BLOCK_MANAGER_CLIENT_ID = 56;
     public static final int EXISTING_BLOCK_MANAGER_CLIENT_ID = 57;
     public static final int UNKNOWN_BLOCK_MANAGER_CLIENT_ID = 58;
     public static final int BLOCK_CLIENT_INVALID_BLOCK_TYPE = 59;
 
+    // File Manager RMI
+    public static final int NULL_FILE_RMI_MANAGER_ID_ARG = 60;
+    public static final int NULL_FILE_RMI_FIELD_ID_ARG = 61;
+    public static final int TERMINATE_UNKNOWN_FILE_RMI = 62;
+    public static final int NULL_FILE_RMI_FILE_ARG = 63;
+    public static final int INVALID_FILE_RMI_FILE_ARG = 64;
+
     // File Manager Server
-    public static final int NULL_FILE_MANAGER_CONTROLLER_ID = 60;
-    public static final int UNKNOWN_FILE_MANAGER_CONTROLLER_ID = 61;
-    public static final int EXISTING_FILE_MANAGER_CONTROLLER_ID = 62;
-    public static final int FILE_MANAGER_NOT_SERVING = 63;
-    public static final int FILE_MANAGER_NO_SERVING = 64;
+    public static final int NULL_FILE_MANAGER_SERVER_ID = 65;
+    public static final int UNKNOWN_FILE_MANAGER_SERVER_ID = 66;
+    public static final int EXISTING_FILE_MANAGER_SERVER_ID = 67;
+    public static final int FILE_MANAGER_NOT_SERVING = 68;
+    public static final int FILE_MANAGER_SERVER_LAUNCH_FAILURE = 69;
+    public static final int ALREADY_BOUND_FILE_RMI = 70;
+    public static final int UNKNOWN_FILE_MANAGER_SERVER_EXCEPTION = 71;
+
+    // File Manager Client Id
+    public static final int NULL_FILE_MANAGER_CLIENT_ID_ARG = 72;
+
+    // File Manager Client
+    public static final int FILE_MANAGER_CLIENT_CONNECT_FAILURE = 73;
+    public static final int NOT_BOUND_FILE_RMI = 74;
+    public static final int FILE_MANAGER_CLIENT_REMOTE_EXCEPTION = 75;
+    public static final int NULL_FILE_MANAGER_CLIENT_ID = 76;
+    public static final int EXISTING_FILE_MANAGER_CLIENT_ID = 77;
+    public static final int UNKNOWN_FILE_MANAGER_CLIENT_ID = 78;
+    public static final int FILE_CLIENT_INVALID_FIELD_TYPE = 79;
 
     // UNKNOWN
     public static final int UNKNOWN = 1000;
@@ -160,19 +181,20 @@ public class ErrorCode extends RuntimeException {
 
         // Config
         ErrorCodeMap.put(CONFIG_DUPLICATION_MORE_THAN_BLOCK_MANAGER, "Duplication should be less than block managers");
+        ErrorCodeMap.put(FAILED_TO_SET_SOCKET_TIMEOUT, "Failed to set socket timeout");
 
         // Block Manager RMI
-        ErrorCodeMap.put(NULL_BLOCK_RMI_ID_ARG, "Null id argument to block manager RMI");
+        ErrorCodeMap.put(NULL_BLOCK_MANAGER_RMI_ID_ARG, "Null id argument to block manager RMI");
         ErrorCodeMap.put(NULL_BLOCK_RMI_DATA_ARG, "Null data argument to block manager RMI");
         ErrorCodeMap.put(TERMINATE_UNKNOWN_BLOCK_RMI, "Try to terminate unknown block manager RMI service");
 
         // Block Manager Server
         ErrorCodeMap.put(NULL_BLOCK_MANAGER_SERVER_ID, "Null block manager id argument to controller");
-        ErrorCodeMap.put(EXISTING_BLOCK_MANAGER_SERVER_ID, "Add existing block manager id to controller: ");
         ErrorCodeMap.put(UNKNOWN_BLOCK_MANAGER_SERVER_ID, "Unknown block manager id argument to controller: ");
+        ErrorCodeMap.put(EXISTING_BLOCK_MANAGER_SERVER_ID, "Add existing block manager id to controller: ");
         ErrorCodeMap.put(BLOCK_MANAGER_NOT_SERVING, "Block manager is not serving: ");
         ErrorCodeMap.put(BLOCK_MANAGER_NO_SERVING, "No block manager is serving");
-        ErrorCodeMap.put(BLOCK_MANAGER_SERVER_LAUNCH_FAILURE, "Failed to launch server");
+        ErrorCodeMap.put(BLOCK_MANAGER_SERVER_LAUNCH_FAILURE, "Failed to launch block servers");
         ErrorCodeMap.put(ALREADY_BOUND_BLOCK_RMI, "Block manager RMI already bounded");
         ErrorCodeMap.put(LACKING_SERVER_FOR_DUPLICATION, "Running servers can not meet duplication config requirement");
         ErrorCodeMap.put(UNKNOWN_BLOCK_MANAGER_SERVER_EXCEPTION, "Unknown block manager server exception, server stop running: ");
@@ -184,21 +206,41 @@ public class ErrorCode extends RuntimeException {
         ErrorCodeMap.put(BLOCK_CLIENT_INVALID_BLOCK_ID, "Block id passed to block manager client should not be non-positive");
 
         // Block Manager Client
-        ErrorCodeMap.put(BLOCK_MANAGER_CLIENT_CONNECT_FAILURE, "Failed to connect client: ");
+        ErrorCodeMap.put(BLOCK_MANAGER_CLIENT_CONNECT_FAILURE, "Failed to connect block manager client: ");
         ErrorCodeMap.put(NOT_BOUND_BLOCK_RMI, "Block manager RMI not bounded: ");
         ErrorCodeMap.put(BLOCK_MANAGER_CLIENT_REMOTE_EXCEPTION, "Block manager client remote exception:\n");
-        ErrorCodeMap.put(FAILED_TO_SET_SOCKET_TIMEOUT, "Failed to set socket timeout");
         ErrorCodeMap.put(NULL_BLOCK_MANAGER_CLIENT_ID, "Null block manager client id");
         ErrorCodeMap.put(EXISTING_BLOCK_MANAGER_CLIENT_ID, "Add existing block manager client id to controller: ");
         ErrorCodeMap.put(UNKNOWN_BLOCK_MANAGER_CLIENT_ID, "Unknown block manager client id argument to controller: ");
-        ErrorCodeMap.put(BLOCK_CLIENT_INVALID_BLOCK_TYPE, "Block id type passed to block manager client invalid");
+        ErrorCodeMap.put(BLOCK_CLIENT_INVALID_BLOCK_TYPE, "Invalid block id type passed to block manager client");
+
+        // File Manager RMI
+        ErrorCodeMap.put(NULL_FILE_RMI_MANAGER_ID_ARG, "Null manager id argument to file manager RMI");
+        ErrorCodeMap.put(NULL_FILE_RMI_FIELD_ID_ARG, "Null field argument to file manager RMI");
+        ErrorCodeMap.put(TERMINATE_UNKNOWN_FILE_RMI, "Try to terminate unknown file manager RMI service");
+        ErrorCodeMap.put(NULL_FILE_RMI_FILE_ARG, "Null file argument to file manager RMI");
+        ErrorCodeMap.put(INVALID_FILE_RMI_FILE_ARG, "Invalid file argument to file manager RMI");
 
         // File Manager Server
-        ErrorCodeMap.put(NULL_FILE_MANAGER_CONTROLLER_ID, "Null file manager id argument to controller");
-        ErrorCodeMap.put(UNKNOWN_FILE_MANAGER_CONTROLLER_ID, "Unknown file manager id argument to controller: ");
-        ErrorCodeMap.put(EXISTING_FILE_MANAGER_CONTROLLER_ID, "Add existing file manager id to controller");
+        ErrorCodeMap.put(NULL_FILE_MANAGER_SERVER_ID, "Null file manager id argument to controller");
+        ErrorCodeMap.put(UNKNOWN_FILE_MANAGER_SERVER_ID, "Unknown file manager id argument to controller: ");
+        ErrorCodeMap.put(EXISTING_FILE_MANAGER_SERVER_ID, "Add existing file manager id to controller: ");
         ErrorCodeMap.put(FILE_MANAGER_NOT_SERVING, "File manager is not serving: ");
-        ErrorCodeMap.put(FILE_MANAGER_NO_SERVING, "No file manager is serving");
+        ErrorCodeMap.put(FILE_MANAGER_SERVER_LAUNCH_FAILURE, "Failed to launch file servers");
+        ErrorCodeMap.put(ALREADY_BOUND_FILE_RMI, "File manager RMI already bounded");
+        ErrorCodeMap.put(UNKNOWN_FILE_MANAGER_SERVER_EXCEPTION, "Unknown file manager server exception, server stop running: ");
+
+        // File Manager Client Id
+        ErrorCodeMap.put(NULL_FILE_MANAGER_CLIENT_ID_ARG, "Null argument passed to file manager client id");
+
+        // File Manager Client
+        ErrorCodeMap.put(FILE_MANAGER_CLIENT_CONNECT_FAILURE, "Failed to connect file manager client: ");
+        ErrorCodeMap.put(NOT_BOUND_FILE_RMI, "File manager RMI not bounded: ");
+        ErrorCodeMap.put(FILE_MANAGER_CLIENT_REMOTE_EXCEPTION, "File manager client remote exception:\n");
+        ErrorCodeMap.put(NULL_FILE_MANAGER_CLIENT_ID, "Null file manager client id");
+        ErrorCodeMap.put(EXISTING_FILE_MANAGER_CLIENT_ID, "Add existing file manager client id to controller: ");
+        ErrorCodeMap.put(UNKNOWN_FILE_MANAGER_CLIENT_ID, "Unknown file manager client id argument to controller: ");
+        ErrorCodeMap.put(FILE_CLIENT_INVALID_FIELD_TYPE, "Invalid field id type passed to file manager client");
 
         // Unknown
         ErrorCodeMap.put(UNKNOWN, "Unknown exception");

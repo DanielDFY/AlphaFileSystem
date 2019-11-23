@@ -51,7 +51,6 @@ public class AlphaFileManager implements IFileManager {
 
         // initialize new meta file with empty file map
         writeMeta(new Meta(new HashMap<>()));
-        AlphaFileManagerController.addManager(this.fileManagerId);
     }
 
     // get existing file manager
@@ -132,8 +131,8 @@ public class AlphaFileManager implements IFileManager {
     }
 
     @Override
-    public IFile getFile(Id id) {
-        if (!AlphaFileManagerController.isServing(fileManagerId)) {
+    public AlphaFile getFile(Id id) {
+        if (!AlphaFileManagerServer.isServing(fileManagerId)) {
             throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING, fileManagerId.getId());
         }
 
@@ -150,12 +149,12 @@ public class AlphaFileManager implements IFileManager {
         if (!fileMap.containsKey(fieldId))
             throw new ErrorCode(ErrorCode.UNKNOWN_FIELD_ID, fieldId.getId());
         else
-            return new AlphaFile(this.fileManagerId, fileMap.get(fieldId));
+            return new AlphaFile(this.fileManagerId, fileMap.get(fieldId), fieldId);
     }
 
     @Override
-    public IFile newFile(Id id) {
-        if (!AlphaFileManagerController.isServing(fileManagerId)) {
+    public AlphaFile newFile(Id id) {
+        if (!AlphaFileManagerServer.isServing(fileManagerId)) {
             throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING, fileManagerId.getId());
         }
 
@@ -167,7 +166,7 @@ public class AlphaFileManager implements IFileManager {
 
         FieldId fieldId = (FieldId) id;
 
-        AlphaFile file = new AlphaFile(this.fileManagerId);
+        AlphaFile file = new AlphaFile(this.fileManagerId, fieldId);
 
         Meta meta = readMeta();
         meta.fileMap.put(fieldId, file.getFileId());
@@ -182,7 +181,7 @@ public class AlphaFileManager implements IFileManager {
     }
 
     @Override
-    public Id getManagerId() {
+    public AlphaFileManagerId getManagerId() {
         return fileManagerId;
     }
 }

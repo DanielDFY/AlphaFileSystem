@@ -11,9 +11,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.rmi.AlreadyBoundException;
+import java.rmi.NoSuchObjectException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 
 public class BlockManagerServer implements IBlockManager {
@@ -106,11 +108,23 @@ public class BlockManagerServer implements IBlockManager {
         }
     }
 
+    public static void restartServer(BlockManagerId blockManagerId) {
+        if (null == blockManagerId) {
+            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_SERVER_ID);
+        }
+
+        if (!switchMap.containsKey(blockManagerId)) {
+            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_ID, blockManagerId.getId());
+        } else {
+            serverMap.replace(blockManagerId, new BlockManagerServer(blockManagerId));
+        }
+    }
+
     public static void terminateRMI() {
         try {
-            blockManagerRMI.terminate();
-        } catch (RemoteException e) {
-            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_ID);
+            UnicastRemoteObject.unexportObject(blockManagerRMI, true);
+        } catch (NoSuchObjectException e) {
+            throw new ErrorCode(ErrorCode.TERMINATE_UNKNOWN_BLOCK_RMI);
         }
     }
 
@@ -120,7 +134,7 @@ public class BlockManagerServer implements IBlockManager {
         launchRMI();
     }
 
-    // initialize local managers
+    // initialize local block managers
     private static void initLocal() {
         File blockManagerDir = new File(PathConstants.BLOCK_MANAGER_PATH);
         if (blockManagerDir.exists()) {
@@ -152,8 +166,8 @@ public class BlockManagerServer implements IBlockManager {
         }
 
         for (int i = 0; i < ConfigConstants.BLOCK_MANAGER_NUM; ++i) {
-            BlockManager blockManager = new BlockManager();
-            addServer(blockManager.getManagerId());
+            BlockManagerServer blockManagerServer = new BlockManagerServer();
+            addServer(blockManagerServer.getManagerId());
         }
     }
 
@@ -161,9 +175,9 @@ public class BlockManagerServer implements IBlockManager {
     private static void launchRMI() {
         try {
             blockManagerRMI = new BlockManagerRMI();
-            LocateRegistry.createRegistry(ConfigConstants.RMI_SERVER_PORT);
+            LocateRegistry.createRegistry(ConfigConstants.BLOCK_RMI_SERVER_PORT);
             Registry registry = LocateRegistry.getRegistry();
-            registry.bind(ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST, blockManagerRMI);
+            registry.bind(ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST + ConfigConstants.BLOCK_RMI_SERVER_PREFIX, blockManagerRMI);
         } catch (RemoteException e) {
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_SERVER_LAUNCH_FAILURE);
         } catch (AlreadyBoundException e) {
@@ -186,20 +200,18 @@ public class BlockManagerServer implements IBlockManager {
         do {
             long randomBlockManagerIdNum = (long) (Math.random() * switchMap.size()) + 1; // + 1 for id number starts from 1
             randomBlockManagerId = new BlockManagerId(PathConstants.BLOCK_MANAGER_PREFIX + randomBlockManagerIdNum);
-        } while (isServing(randomBlockManagerId));
+        } while (!isServing(randomBlockManagerId));
         return new BlockManager(randomBlockManagerId);
     }
 
     /* Server object */
     private final BlockManagerId blockManagerId;
-    private final HashMap<BlockId, Block> blockBuffer;
+    private final HashMap<BlockId, Block> blockCache;
 
     // create new block manager server
     public BlockManagerServer() {
         this.blockManagerId = new BlockManager().getManagerId();
-        this.blockBuffer = new HashMap<>();
-
-        addServer(this.blockManagerId);
+        this.blockCache = new HashMap<>();
     }
 
     // get existing block manager server
@@ -208,27 +220,27 @@ public class BlockManagerServer implements IBlockManager {
             throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_ARGUMENT);
 
         this.blockManagerId = new BlockManager(blockManagerId).getManagerId();
-        this.blockBuffer = new HashMap<>();
+        this.blockCache = new HashMap<>();
     }
 
-    private void updateBuffer(Block block) {
+    private void updateCache(Block block) {
         // hit
-        if (blockBuffer.containsKey(block.getIndexId()))
+        if (blockCache.containsKey(block.getIndexId()))
             return;
 
         // miss
-        if (blockBuffer.size() == ConfigConstants.BLOCK_MANAGER_SERVER_BUFFER_SIZE) {
-            int random = (int) (Math.random() * blockBuffer.size());
-            for (BlockId blockId : blockBuffer.keySet()) {
+        if (blockCache.size() == ConfigConstants.BLOCK_MANAGER_SERVER_CACHE_SIZE) {
+            int random = (int) (Math.random() * blockCache.size());
+            for (BlockId blockId : blockCache.keySet()) {
                 if (random == 0) {
-                    blockBuffer.remove(blockId);
+                    blockCache.remove(blockId);
                 } else {
                     --random;
                 }
             }
         }
 
-        blockBuffer.put(block.getIndexId(), block);
+        blockCache.put(block.getIndexId(), block);
     }
 
     @Override
@@ -237,10 +249,15 @@ public class BlockManagerServer implements IBlockManager {
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_NOT_SERVING, blockManagerId.getId());
         }
 
+        // hit
+        if (blockCache.containsKey(indexId))
+            return blockCache.get(indexId);
+
+        // miss
         try {
             BlockManager blockManager = new BlockManager(blockManagerId);
             Block block = blockManager.getBlock(indexId);
-            updateBuffer(block);
+            updateCache(block);
             return block;
         } catch (ErrorCode errorCode) {
             throw errorCode;
@@ -259,7 +276,7 @@ public class BlockManagerServer implements IBlockManager {
         try {
             BlockManager blockManager = new BlockManager(blockManagerId);
             Block block = blockManager.newBlock(b);
-            updateBuffer(block);
+            updateCache(block);
             return block;
         } catch (ErrorCode errorCode) {
             throw errorCode;

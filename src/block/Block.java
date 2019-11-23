@@ -123,8 +123,8 @@ public class Block implements IBlock, Serializable {
 
     // write serialized meta info into meta file
     private Meta writeMeta(byte[] data) {
-        BlockManager blockManager = new BlockManager(blockManagerId);
-        File file = new File(blockManager.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
+        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
 
         try {
             ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(file));
@@ -149,8 +149,8 @@ public class Block implements IBlock, Serializable {
 
     // write data into data file
     private byte[] writeData(byte[] data) {
-        BlockManager blockManager = new BlockManager(blockManagerId);
-        File file = new File(blockManager.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
+        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
 
         try {
             BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
@@ -165,8 +165,8 @@ public class Block implements IBlock, Serializable {
 
     // get meta object from meta file
     private Meta readMeta() {
-        BlockManager blockManager = new BlockManager(blockManagerId);
-        File file = new File(blockManager.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
+        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
 
         try {
             ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(file));
@@ -182,8 +182,8 @@ public class Block implements IBlock, Serializable {
 
     // get data from data file
     private byte[] readData() {
-        BlockManager blockManager = new BlockManager(blockManagerId);
-        File file = new File(blockManager.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
+        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
 
         try {
             BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
@@ -203,8 +203,8 @@ public class Block implements IBlock, Serializable {
     }
 
     @Override
-    public BlockManager getBlockManager() {
-        return new BlockManager(blockManagerId);
+    public BlockManagerServer getBlockManager() {
+        return new BlockManagerServer(blockManagerId);
     }
 
     @Override

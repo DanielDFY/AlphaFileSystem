@@ -4,14 +4,10 @@ import constant.ConfigConstants;
 import id.Id;
 import util.ErrorCode;
 
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.rmi.server.RMISocketFactory;
 import java.util.HashMap;
 
 
@@ -37,10 +33,9 @@ public class BlockManagerClient implements IBlockManager {
         }
 
         if (!clientMap.containsKey(blockManagerClientId)) {
-            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_CLIENT_ID, blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr());
-        } else {
-            return clientMap.get(blockManagerClientId);
+            addClient(blockManagerClientId);
         }
+        return clientMap.get(blockManagerClientId);
     }
 
     public static void removeClient(BlockManagerClientId blockManagerClientId) {
@@ -52,26 +47,6 @@ public class BlockManagerClient implements IBlockManager {
             throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_CLIENT_ID, blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr());
         } else {
             clientMap.remove(blockManagerClientId);
-        }
-    }
-
-    static {
-        try {
-            RMISocketFactory.setSocketFactory(new RMISocketFactory()
-            {
-                public Socket createSocket(String host, int port) throws IOException {
-                    Socket socket = new Socket(host, port);
-                    socket.setSoTimeout(ConfigConstants.BLOCK_MANAGER_CLIENT_SOCKET_TIMEOUT);
-                    socket.setSoLinger(false, 0);
-                    return socket;
-                }
-
-                public ServerSocket createServerSocket(int port) throws IOException {
-                    return new ServerSocket(port);
-                }
-            });
-        } catch (Exception e) {
-            throw new ErrorCode(ErrorCode.FAILED_TO_SET_SOCKET_TIMEOUT);
         }
     }
 
@@ -89,11 +64,11 @@ public class BlockManagerClient implements IBlockManager {
     private IBlockManagerRMI connectHost() {
         try {
             Registry registry = LocateRegistry.getRegistry(blockManagerClientId.getHostStr());
-            return (IBlockManagerRMI)registry.lookup(ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST);
+            return (IBlockManagerRMI)registry.lookup(ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST + ConfigConstants.BLOCK_RMI_SERVER_PREFIX);
         } catch (RemoteException e) {
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_CLIENT_CONNECT_FAILURE, ConfigConstants.RMI_SERVER_HOST);
         } catch (NotBoundException e) {
-            throw new ErrorCode(ErrorCode.NOT_BOUND_BLOCK_RMI, ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX);
+            throw new ErrorCode(ErrorCode.NOT_BOUND_BLOCK_RMI, ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX);
         }
     }
 
@@ -131,7 +106,7 @@ public class BlockManagerClient implements IBlockManager {
             updateBuffer(block);
             return block;
         } catch (Exception e) {
-            String serverStr = ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr() + ": ";
+            String serverStr = ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr() + ": ";
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_CLIENT_REMOTE_EXCEPTION, serverStr + e.getMessage());
         }
     }
@@ -146,7 +121,7 @@ public class BlockManagerClient implements IBlockManager {
             updateBuffer(block);
             return block;
         } catch (Exception e) {
-            String serverStr = ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr() + ": ";
+            String serverStr = ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr() + ": ";
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_CLIENT_REMOTE_EXCEPTION, serverStr + e.getMessage());
         }
     }
@@ -154,9 +129,9 @@ public class BlockManagerClient implements IBlockManager {
     @Override
     public String getPath() {
         try {
-            return ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerRMI.getPathRMI(blockManagerClientId.getBlockManagerIdStr());
+            return ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerRMI.getPathRMI(blockManagerClientId.getBlockManagerIdStr());
         } catch (Exception e) {
-            String serverStr = ConfigConstants.RMI_BLOCK_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr() + ": ";
+            String serverStr = ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + blockManagerClientId.getHostStr() + "/" + blockManagerClientId.getBlockManagerIdStr() + ": ";
             throw new ErrorCode(ErrorCode.BLOCK_MANAGER_CLIENT_REMOTE_EXCEPTION, serverStr + e.getMessage());
         }
     }
