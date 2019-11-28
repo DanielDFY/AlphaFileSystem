@@ -6,14 +6,13 @@ import id.Id;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.rmi.AlreadyBoundException;
+import java.io.RandomAccessFile;
+import java.net.MalformedURLException;
+import java.rmi.Naming;
 import java.rmi.NoSuchObjectException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 
@@ -21,23 +20,56 @@ public class AlphaFileManagerServer implements IFileManager {
     /* Server static controller */
     private static HashMap<AlphaFileManagerId, Boolean> switchMap = new HashMap<>();
     private static HashMap<AlphaFileManagerId, AlphaFileManagerServer> serverMap = new HashMap<>();
-    private static IFileManagerRMI fileManagerRMI;
+
+    public static void listServers() {
+        if (noServing()) {
+            System.out.println("No file manager server serving");
+        }
+        else {
+            System.out.println("File manager server List:");
+            for (AlphaFileManagerId id : switchMap.keySet()) {
+                System.out.println(id.getId() + " : " + switchMap.get(id));
+            }
+        }
+    }
 
     public static void startManager(AlphaFileManagerId fileManagerId) {
         if (null == fileManagerId) {
             throw new ErrorCode(ErrorCode.NULL_FILE_MANAGER_SERVER_ID);
         }
-        if (null == switchMap.replace(fileManagerId, true)) {
+        if (!switchMap.containsKey(fileManagerId) || !serverMap.containsKey(fileManagerId)) {
             throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_SERVER_ID, fileManagerId.getId());
         }
+
+        AlphaFileManagerServer fileManagerServer = new AlphaFileManagerServer(fileManagerId);
+        fileManagerServer.launchRMI();
+
+        switchMap.replace(fileManagerId, true);
+        serverMap.replace(fileManagerId, fileManagerServer);
     }
 
     public static void stopManager(AlphaFileManagerId fileManagerId) {
         if (null == fileManagerId) {
             throw new ErrorCode(ErrorCode.NULL_FILE_MANAGER_SERVER_ID);
         }
-        if (null == switchMap.replace(fileManagerId, false)) {
+        if (!switchMap.containsKey(fileManagerId) || !serverMap.containsKey(fileManagerId)) {
             throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_SERVER_ID, fileManagerId.getId());
+        }
+
+        AlphaFileManagerServer fileManagerServer = serverMap.get(fileManagerId);
+        if (null != fileManagerServer)
+            fileManagerServer.terminateRMI();
+
+        switchMap.replace(fileManagerId, false);
+    }
+
+    public static void restartManager(AlphaFileManagerId fileManagerId) throws ErrorCode {
+        try {
+            stopManager(fileManagerId);
+            startManager(fileManagerId);
+        } catch (Exception e) {
+            stopManager(fileManagerId);
+            throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_SERVER_EXCEPTION, fileManagerId.getId());
         }
     }
 
@@ -90,8 +122,8 @@ public class AlphaFileManagerServer implements IFileManager {
         if (switchMap.containsKey(fileManagerId)) {
             throw new ErrorCode(ErrorCode.EXISTING_FILE_MANAGER_SERVER_ID, fileManagerId.getId());
         } else {
-            switchMap.put(fileManagerId, true);
-            serverMap.put(fileManagerId, new AlphaFileManagerServer(fileManagerId));
+            switchMap.put(fileManagerId, false);
+            serverMap.put(fileManagerId, null);
         }
     }
 
@@ -107,34 +139,8 @@ public class AlphaFileManagerServer implements IFileManager {
         }
     }
 
-    public static void restartServer(AlphaFileManagerId fileManagerId) {
-        if (null == fileManagerId) {
-            throw new ErrorCode(ErrorCode.NULL_FILE_MANAGER_SERVER_ID);
-        }
-
-        if (!switchMap.containsKey(fileManagerId)) {
-            throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_SERVER_ID, fileManagerId.getId());
-        } else {
-            serverMap.replace(fileManagerId, new AlphaFileManagerServer(fileManagerId));
-        }
-    }
-
-    public static void terminateRMI() {
-        try {
-            UnicastRemoteObject.unexportObject(fileManagerRMI, true);
-        } catch (NoSuchObjectException e) {
-            throw new ErrorCode(ErrorCode.TERMINATE_UNKNOWN_FILE_RMI);
-        }
-    }
-
-    /* File manager module initialization */
+    /* Initialize local file managers */
     public static void init() {
-        initLocal();
-        launchRMI();
-    }
-
-    // initialize local file managers
-    private static void initLocal() {
         File fileManagerDir = new File(PathConstants.FILE_MANAGER_PATH);
         if (fileManagerDir.exists()) {
             for (int i = 1; i <= ConfigConstants.FILE_MANAGER_NUM; ++i) {
@@ -148,18 +154,18 @@ public class AlphaFileManagerServer implements IFileManager {
 
         File fileCount = new File(PathConstants.FILE_MANAGER_PATH, PathConstants.FILE_ID_COUNT);
         try {
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileCount));
-            outputStream.write(ByteUtils.longToBytes(0));
-            outputStream.close();
+            RandomAccessFile output = new RandomAccessFile(fileCount, "rwd");
+            output.write(ByteUtils.longToBytes(0));
+            output.close();
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
 
         File fileManagerCount = new File(PathConstants.FILE_MANAGER_PATH, PathConstants.FILE_MANAGER_ID_COUNT);
         try {
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileManagerCount));
-            outputStream.write(ByteUtils.longToBytes(0));
-            outputStream.close();
+            RandomAccessFile output = new RandomAccessFile(fileManagerCount, "rwd");
+            output.write(ByteUtils.longToBytes(0));
+            output.close();
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
@@ -170,22 +176,9 @@ public class AlphaFileManagerServer implements IFileManager {
         }
     }
 
-    // launch file manager RMI service for other clients
-    private static void launchRMI() {
-        try {
-            fileManagerRMI = new AlphaFileManagerRMI();
-            LocateRegistry.createRegistry(ConfigConstants.FILE_RMI_SERVER_PORT);
-            Registry registry = LocateRegistry.getRegistry();
-            registry.bind(ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST + ConfigConstants.FILE_RMI_SERVER_PREFIX, fileManagerRMI);
-        } catch (RemoteException e) {
-            throw new ErrorCode(ErrorCode.FILE_MANAGER_SERVER_LAUNCH_FAILURE);
-        } catch (AlreadyBoundException e) {
-            throw new ErrorCode(ErrorCode.ALREADY_BOUND_FILE_RMI);
-        }
-    }
-
     /* Server object */
     private final AlphaFileManagerId fileManagerId;
+    private IFileManagerRMI fileManagerRMI;
     private final HashMap<Id, AlphaFile> fileCache;
 
     // create new file manager server
@@ -221,14 +214,38 @@ public class AlphaFileManagerServer implements IFileManager {
                 }
             }
         }
-
         fileCache.put(fieldId, file);
+    }
+
+    // launch file manager RMI service for other clients
+    private void launchRMI() {
+        try {
+            AlphaFileManagerRMIId fileManagerRMIId = new AlphaFileManagerRMIId(ConfigConstants.RMI_SERVER_HOST, ConfigConstants.RMI_SERVER_PORT, fileManagerId.getId());
+            fileManagerRMI = new AlphaFileManagerRMI(fileManagerRMIId);
+            Naming.rebind(fileManagerRMIId.toString(), fileManagerRMI);
+        } catch (RemoteException e) {
+            throw new ErrorCode(ErrorCode.FILE_MANAGER_SERVER_LAUNCH_FAILURE);
+        } catch (MalformedURLException e) {
+            throw new ErrorCode(ErrorCode.BOUND_FILE_RMI_ERROR);
+        }
+    }
+
+    public void terminateRMI() {
+        try {
+            UnicastRemoteObject.unexportObject(fileManagerRMI, true);
+            String bindName = ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST + ":" + ConfigConstants.RMI_SERVER_PORT + "/" + fileManagerId.getId();
+            Naming.unbind(bindName);
+        } catch (NoSuchObjectException | NotBoundException e) {
+            throw new ErrorCode(ErrorCode.TERMINATE_UNKNOWN_FILE_RMI);
+        } catch (RemoteException | MalformedURLException e) {
+            throw new ErrorCode(ErrorCode.TERMINATE_FILE_RMI_ERROR);
+        }
     }
 
     @Override
     public AlphaFile getFile(Id fieldId) {
         if (!AlphaFileManagerServer.isServing(fileManagerId))
-            throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING);
+            throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING, fileManagerId.getId());
 
         // hit
         if (fileCache.containsKey(fieldId))
@@ -243,15 +260,15 @@ public class AlphaFileManagerServer implements IFileManager {
         } catch (ErrorCode errorCode) {
             throw errorCode;
         } catch (Exception e) {
-            stopManager(fileManagerId);
-            throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_SERVER_EXCEPTION, fileManagerId.getId());
+            restartManager(fileManagerId);
+            throw new ErrorCode(ErrorCode.RESTART_FILE_MANAGER_SERVER_EXCEPTION, fileManagerId.getId());
         }
     }
 
     @Override
     public AlphaFile newFile(Id fieldId) {
         if (!AlphaFileManagerServer.isServing(fileManagerId))
-            throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING);
+            throw new ErrorCode(ErrorCode.FILE_MANAGER_NOT_SERVING, fileManagerId.getId());
 
         try {
             AlphaFileManager fileManager = new AlphaFileManager(fileManagerId);
@@ -261,8 +278,8 @@ public class AlphaFileManagerServer implements IFileManager {
         } catch (ErrorCode errorCode) {
             throw errorCode;
         } catch (Exception e) {
-            stopManager(fileManagerId);
-            throw new ErrorCode(ErrorCode.UNKNOWN_FILE_MANAGER_SERVER_EXCEPTION, fileManagerId.getId());
+            restartManager(fileManagerId);
+            throw new ErrorCode(ErrorCode.RESTART_FILE_MANAGER_SERVER_EXCEPTION, fileManagerId.getId());
         }
     }
 

@@ -5,14 +5,13 @@ import id.Id;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,13 +66,13 @@ public class AlphaFileManager implements IFileManager {
         long newFileManagerIdNum;
 
         try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+            RandomAccessFile input = new RandomAccessFile(file, "r");
 
             // read long-type file manager id count
             byte[] bytes = new byte[Long.BYTES];
-            if (inputStream.read(bytes) != bytes.length)
+            if (input.read(bytes) != bytes.length)
                 throw new ErrorCode(ErrorCode.INVALID_FILE_MANAGER_ID);
-            inputStream.close();
+            input.close();
 
             // increase id count
             newFileManagerIdNum = ByteUtils.bytesToLong(bytes) + 1;
@@ -83,10 +82,10 @@ public class AlphaFileManager implements IFileManager {
 
         try {
             // update id count file
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
             byte[] bytes = ByteUtils.longToBytes(newFileManagerIdNum);
-            outputStream.write(bytes);
-            outputStream.close();
+            output.write(bytes);
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }

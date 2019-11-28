@@ -5,14 +5,9 @@ import util.ByteUtils;
 import util.ErrorCode;
 import constant.PathConstants;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
@@ -66,13 +61,13 @@ public class BlockManager implements IBlockManager {
         long newBlockManagerIdNum;
 
         try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+            RandomAccessFile input = new RandomAccessFile(file, "r");
 
             // read long-type block manager id count
             byte[] bytes = new byte[Long.BYTES];
-            if (inputStream.read(bytes) != bytes.length)
+            if (input.read(bytes) != bytes.length)
                 throw new ErrorCode(ErrorCode.INVALID_BLOCK_MANAGER_ID);
-            inputStream.close();
+            input.close();
 
             // increase id count
             newBlockManagerIdNum = ByteUtils.bytesToLong(bytes) + 1;
@@ -82,10 +77,10 @@ public class BlockManager implements IBlockManager {
 
         try {
             // update id count file
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
             byte[] bytes = ByteUtils.longToBytes(newBlockManagerIdNum);
-            outputStream.write(bytes);
-            outputStream.close();
+            output.write(bytes);
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
@@ -98,9 +93,10 @@ public class BlockManager implements IBlockManager {
         File file = new File(PathConstants.BLOCK_MANAGER_PATH, blockManagerId.getId() + PathConstants.META_SUFFIX);
 
         try {
-            ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(file));
-            outputStream.writeObject(meta);
-            outputStream.close();
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
+            byte[] metaStr = ByteUtils.objectToSerialize(meta);
+            output.write(metaStr);
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
@@ -111,10 +107,12 @@ public class BlockManager implements IBlockManager {
         File file = new File(PathConstants.BLOCK_MANAGER_PATH, blockManagerId.getId() + PathConstants.META_SUFFIX);
 
         try {
-            ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(file));
-            Meta meta = (Meta)inputStream.readObject();
-            inputStream.close();
-            return meta;
+            RandomAccessFile input = new RandomAccessFile(file, "r");
+            long metaLength = input.length();
+            byte[] metaStr = new byte[(int) metaLength];
+            input.read(metaStr);
+            input.close();
+            return (Meta) ByteUtils.serializeToObject(metaStr);
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (ClassNotFoundException e) {

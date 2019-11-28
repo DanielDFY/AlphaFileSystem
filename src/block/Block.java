@@ -5,13 +5,8 @@ import constant.ConfigConstants;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.io.File;
 import java.security.MessageDigest;
@@ -38,7 +33,7 @@ public class Block implements IBlock, Serializable {
 
         @Override
         public String toString() {
-            return "size: " + size + ", checksum: " + checksum;
+            return "size: " + size + "\n checksum: " + checksum;
         }
     }
 
@@ -94,13 +89,13 @@ public class Block implements IBlock, Serializable {
         long newBlockId;
 
         try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+            RandomAccessFile input = new RandomAccessFile(file, "r");
 
             // read long-type block id
             byte[] bytes = new byte[Long.BYTES];
-            if (inputStream.read(bytes) != bytes.length)
+            if (input.read(bytes) != bytes.length)
                 throw new ErrorCode(ErrorCode.INVALID_BLOCK_ID);
-            inputStream.close();
+            input.close();
 
             // increase id count
             newBlockId = ByteUtils.bytesToLong(bytes) + 1;
@@ -110,10 +105,10 @@ public class Block implements IBlock, Serializable {
 
         try {
             // update id count file
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
             byte[] bytes = ByteUtils.longToBytes(newBlockId);
-            outputStream.write(bytes);
-            outputStream.close();
+            output.write(bytes);
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
@@ -123,11 +118,11 @@ public class Block implements IBlock, Serializable {
 
     // write serialized meta info into meta file
     private Meta writeMeta(byte[] data) {
-        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        BlockManagerServer blockManagerServer = BlockManagerServer.getServer(blockManagerId);
         File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
 
         try {
-            ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(file));
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
 
             // use MD5 to calculate checksum
             MessageDigest MD5 = MessageDigest.getInstance("MD5");
@@ -136,8 +131,10 @@ public class Block implements IBlock, Serializable {
 
             // write meta object into meta file
             Meta meta = new Meta(SIZE, checksum);
-            outputStream.writeObject(meta);
-            outputStream.close();
+
+            String metaStr = SIZE + "\n" + checksum;
+            output.write(metaStr.getBytes());
+            output.close();
 
             return meta;
         } catch (IOException e) {
@@ -149,13 +146,13 @@ public class Block implements IBlock, Serializable {
 
     // write data into data file
     private byte[] writeData(byte[] data) {
-        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        BlockManagerServer blockManagerServer = BlockManagerServer.getServer(blockManagerId);
         File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
 
         try {
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
-            outputStream.write(data);
-            outputStream.close();
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
+            output.write(data);
+            output.close();
 
             return data;
         } catch (IOException e) {
@@ -165,32 +162,36 @@ public class Block implements IBlock, Serializable {
 
     // get meta object from meta file
     private Meta readMeta() {
-        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        BlockManagerServer blockManagerServer = BlockManagerServer.getServer(blockManagerId);
         File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.META_SUFFIX);
 
         try {
-            ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(file));
-            Meta meta = (Meta)inputStream.readObject();
-            inputStream.close();
+            RandomAccessFile input = new RandomAccessFile(file, "r");
+
+            int metaSize = Integer.parseInt(input.readLine());
+            String metaChecksum = input.readLine();
+
+            Meta meta = new Meta(metaSize, metaChecksum);
+            input.close();
             return meta;
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
-        } catch (ClassNotFoundException e) {
+        } catch (Exception e) {
             throw new ErrorCode(ErrorCode.BLOCK_META_FILE_INVALID);
         }
     }
 
     // get data from data file
     private byte[] readData() {
-        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        BlockManagerServer blockManagerServer = BlockManagerServer.getServer(blockManagerId);
         File file = new File(blockManagerServer.getPath(), blockId.getId() + PathConstants.DATA_SUFFIX);
 
         try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+            RandomAccessFile input = new RandomAccessFile(file, "r");
             byte[] bytes = new byte[SIZE];
-            if (inputStream.read(bytes) != bytes.length)
+            if (input.read(bytes) != bytes.length)
                 throw new ErrorCode(ErrorCode.BLOCK_DATA_FILE_INVALID);
-            inputStream.close();
+            input.close();
             return bytes;
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
@@ -204,7 +205,7 @@ public class Block implements IBlock, Serializable {
 
     @Override
     public BlockManagerServer getBlockManager() {
-        return new BlockManagerServer(blockManagerId);
+        return BlockManagerServer.getServer(blockManagerId);
     }
 
     @Override

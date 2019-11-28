@@ -6,15 +6,14 @@ import id.Id;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.rmi.AlreadyBoundException;
+import java.io.RandomAccessFile;
+import java.net.MalformedURLException;
+import java.rmi.Naming;
 import java.rmi.NoSuchObjectException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 
@@ -22,23 +21,56 @@ public class BlockManagerServer implements IBlockManager {
     /* Server static controller */
     private static HashMap<BlockManagerId, Boolean> switchMap = new HashMap<>();
     private static HashMap<BlockManagerId, BlockManagerServer> serverMap = new HashMap<>();
-    private static IBlockManagerRMI blockManagerRMI;
+
+    public static void listServers() {
+        if (noServing()) {
+            System.out.println("No block manager serving");
+        }
+        else {
+            System.out.println("Block manager server list:");
+            for (BlockManagerId id : switchMap.keySet()) {
+                System.out.println(id.getId() + " : " + switchMap.get(id));
+            }
+        }
+    }
 
     public static void startManager(BlockManagerId blockManagerId) {
         if (null == blockManagerId) {
             throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_SERVER_ID);
         }
-        if (null == switchMap.replace(blockManagerId, true)) {
+        if (!switchMap.containsKey(blockManagerId) || !serverMap.containsKey(blockManagerId)) {
             throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_ID, blockManagerId.getId());
         }
+
+        BlockManagerServer blockManagerServer = new BlockManagerServer(blockManagerId);
+        blockManagerServer.launchRMI();
+
+        switchMap.replace(blockManagerId, true);
+        serverMap.replace(blockManagerId, blockManagerServer);
     }
 
     public static void stopManager(BlockManagerId blockManagerId) {
         if (null == blockManagerId) {
             throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_SERVER_ID);
         }
-        if (null == switchMap.replace(blockManagerId, false)) {
+        if (!switchMap.containsKey(blockManagerId) || !serverMap.containsKey(blockManagerId)) {
             throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_ID, blockManagerId.getId());
+        }
+
+        BlockManagerServer blockManagerServer = serverMap.get(blockManagerId);
+        if (null != blockManagerServer)
+            blockManagerServer.terminateRMI();
+
+        switchMap.replace(blockManagerId, false);
+    }
+
+    public static void restartManager(BlockManagerId blockManagerId) throws ErrorCode {
+        try {
+            stopManager(blockManagerId);
+            startManager(blockManagerId);
+        } catch (Exception e) {
+            stopManager(blockManagerId);
+            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_EXCEPTION, blockManagerId.getId());
         }
     }
 
@@ -91,8 +123,8 @@ public class BlockManagerServer implements IBlockManager {
         if (switchMap.containsKey(blockManagerId)) {
             throw new ErrorCode(ErrorCode.EXISTING_BLOCK_MANAGER_SERVER_ID, blockManagerId.getId());
         } else {
-            switchMap.put(blockManagerId, true);
-            serverMap.put(blockManagerId, new BlockManagerServer(blockManagerId));
+            switchMap.put(blockManagerId, false);
+            serverMap.put(blockManagerId, null);
         }
     }
 
@@ -108,34 +140,8 @@ public class BlockManagerServer implements IBlockManager {
         }
     }
 
-    public static void restartServer(BlockManagerId blockManagerId) {
-        if (null == blockManagerId) {
-            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_SERVER_ID);
-        }
-
-        if (!switchMap.containsKey(blockManagerId)) {
-            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_ID, blockManagerId.getId());
-        } else {
-            serverMap.replace(blockManagerId, new BlockManagerServer(blockManagerId));
-        }
-    }
-
-    public static void terminateRMI() {
-        try {
-            UnicastRemoteObject.unexportObject(blockManagerRMI, true);
-        } catch (NoSuchObjectException e) {
-            throw new ErrorCode(ErrorCode.TERMINATE_UNKNOWN_BLOCK_RMI);
-        }
-    }
-
-    /* Block manager module initialization */
+    /* Initialize local block managers */
     public static void init() {
-        initLocal();
-        launchRMI();
-    }
-
-    // initialize local block managers
-    private static void initLocal() {
         File blockManagerDir = new File(PathConstants.BLOCK_MANAGER_PATH);
         if (blockManagerDir.exists()) {
             for (int i = 1; i <= ConfigConstants.BLOCK_MANAGER_NUM; ++i) {
@@ -149,18 +155,18 @@ public class BlockManagerServer implements IBlockManager {
 
         File blockCount = new File(PathConstants.BLOCK_MANAGER_PATH, PathConstants.BLOCK_ID_COUNT);
         try {
-            BufferedOutputStream inputStream = new BufferedOutputStream(new FileOutputStream(blockCount));
-            inputStream.write(ByteUtils.longToBytes(0));
-            inputStream.close();
+            RandomAccessFile output = new RandomAccessFile(blockCount, "rwd");
+            output.write(ByteUtils.longToBytes(0));
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, blockCount.getPath());
         }
 
         File blockManagerCount = new File(PathConstants.BLOCK_MANAGER_PATH, PathConstants.BLOCK_MANAGER_ID_COUNT);
         try {
-            BufferedOutputStream inputStream = new BufferedOutputStream(new FileOutputStream(blockManagerCount));
-            inputStream.write(ByteUtils.longToBytes(0));
-            inputStream.close();
+            RandomAccessFile output = new RandomAccessFile(blockManagerCount, "rwd");
+            output.write(ByteUtils.longToBytes(0));
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, blockManagerCount.getPath());
         }
@@ -168,20 +174,6 @@ public class BlockManagerServer implements IBlockManager {
         for (int i = 0; i < ConfigConstants.BLOCK_MANAGER_NUM; ++i) {
             BlockManagerServer blockManagerServer = new BlockManagerServer();
             addServer(blockManagerServer.getManagerId());
-        }
-    }
-
-    // launch block manager RMI service for other clients
-    private static void launchRMI() {
-        try {
-            blockManagerRMI = new BlockManagerRMI();
-            LocateRegistry.createRegistry(ConfigConstants.BLOCK_RMI_SERVER_PORT);
-            Registry registry = LocateRegistry.getRegistry();
-            registry.bind(ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST + ConfigConstants.BLOCK_RMI_SERVER_PREFIX, blockManagerRMI);
-        } catch (RemoteException e) {
-            throw new ErrorCode(ErrorCode.BLOCK_MANAGER_SERVER_LAUNCH_FAILURE);
-        } catch (AlreadyBoundException e) {
-            throw new ErrorCode(ErrorCode.ALREADY_BOUND_BLOCK_RMI);
         }
     }
 
@@ -206,6 +198,7 @@ public class BlockManagerServer implements IBlockManager {
 
     /* Server object */
     private final BlockManagerId blockManagerId;
+    private IBlockManagerRMI blockManagerRMI;
     private final HashMap<BlockId, Block> blockCache;
 
     // create new block manager server
@@ -239,8 +232,33 @@ public class BlockManagerServer implements IBlockManager {
                 }
             }
         }
-
         blockCache.put(block.getIndexId(), block);
+    }
+
+    // launch block manager RMI service for other clients
+    private void launchRMI() {
+        try {
+            BlockManagerRMIId blockManagerRMIId = new BlockManagerRMIId(ConfigConstants.RMI_SERVER_HOST, ConfigConstants.RMI_SERVER_PORT, blockManagerId.getId());
+            blockManagerRMI = new BlockManagerRMI(blockManagerRMIId);
+            Naming.rebind(blockManagerRMIId.toString(), blockManagerRMI);
+        } catch (RemoteException e) {
+            throw new ErrorCode(ErrorCode.MANAGER_REGISTRY_LAUNCH_FAILURE);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            throw new ErrorCode(ErrorCode.BOUND_BLOCK_RMI_ERROR);
+        }
+    }
+
+    public void terminateRMI() {
+        String bindName = ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + ConfigConstants.RMI_SERVER_HOST + ":" + ConfigConstants.RMI_SERVER_PORT + "/" + blockManagerId.getId();
+        try {
+            UnicastRemoteObject.unexportObject(blockManagerRMI, true);
+            Naming.unbind(bindName);
+        } catch (NoSuchObjectException | NotBoundException e) {
+            throw new ErrorCode(ErrorCode.TERMINATE_UNKNOWN_BLOCK_RMI);
+        } catch (RemoteException | MalformedURLException e) {
+            throw new ErrorCode(ErrorCode.TERMINATE_BLOCK_RMI_ERROR, bindName);
+        }
     }
 
     @Override
@@ -262,8 +280,8 @@ public class BlockManagerServer implements IBlockManager {
         } catch (ErrorCode errorCode) {
             throw errorCode;
         } catch (Exception e) {
-            stopManager(blockManagerId);
-            throw new ErrorCode(ErrorCode.UNKNOWN_BLOCK_MANAGER_SERVER_EXCEPTION, blockManagerId.getId());
+            restartManager(blockManagerId);
+            throw new ErrorCode(ErrorCode.RESTART_BLOCK_MANAGER_SERVER_EXCEPTION, blockManagerId.getId());
         }
     }
 

@@ -4,9 +4,9 @@ import java.rmi.Remote;
 import java.rmi.RemoteException;
 
 public interface IFileManagerRMI extends Remote {
-    IFile getFileRMI(String fileManagerIdStr, String fieldIdStr) throws RemoteException;
-    IFile newFileRMI(String fileManagerIdStr, String fieldIdStr) throws RemoteException;
-    String getPathRMI(String fileManagerIdStr) throws RemoteException;
-    IFile setSizeRMI(String fileManagerIdStr, String fieldIdStr, long newSize) throws RemoteException;
-    void writeMetaRMI(String fileManagerIdStr, String fieldIdStr, IFile file) throws RemoteException;
+    IFile getFileRMI(FieldId fieldId) throws RemoteException;
+    IFile newFileRMI(FieldId fieldId) throws RemoteException;
+    String getPathRMI() throws RemoteException;
+    IFile setSizeRMI(FieldId fieldId, long newSize) throws RemoteException;
+    void writeMetaRMI(FieldId fieldId, IFile file) throws RemoteException;
 }

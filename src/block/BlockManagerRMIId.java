@@ -1,34 +1,43 @@
 package block;
 
+import constant.ConfigConstants;
 import id.Id;
 import util.ErrorCode;
 
 import java.io.Serializable;
 
-public class BlockManagerClientId implements Id, Serializable {
+public class BlockManagerRMIId implements Id, Serializable {
     private static final long serialVersionUID = 8260889869936465997L;
 
     private final String hostStr;
+    private final int port;
     private final String blockManagerIdStr;
 
-    public BlockManagerClientId(String hostStr, String blockManagerIdStr) {
+    public BlockManagerRMIId(String hostStr, int port, String blockManagerIdStr) {
         if (null == hostStr || null == blockManagerIdStr)
             throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_CLIENT_ID_ARG);
         this.hostStr = hostStr;
+        this.port = port;
         this.blockManagerIdStr = blockManagerIdStr;
     }
 
     public String getHostStr() {
         return hostStr;
     }
+    public int getPort() {
+        return port;
+    }
     public String getBlockManagerIdStr() {
         return blockManagerIdStr;
     }
 
     @Override
-    public int hashCode() {
-        return (hostStr + "/" + blockManagerIdStr).hashCode();
+    public String toString() {
+        return ConfigConstants.RMI_MANAGER_REGISTRY_PREFIX + hostStr + ":" + port + "/" + blockManagerIdStr;
     }
+
+    @Override
+    public int hashCode() { return toString().hashCode(); }
 
     @Override
     public boolean equals(Object otherObject) {
@@ -41,9 +50,10 @@ public class BlockManagerClientId implements Id, Serializable {
         if (getClass() != otherObject.getClass()) {
             return false;
         }
-        BlockManagerClientId other = (BlockManagerClientId) otherObject;
+        BlockManagerRMIId other = (BlockManagerRMIId) otherObject;
         boolean checkHost = hostStr.compareTo(other.getHostStr()) == 0;
+        boolean checkPort = port == other.getPort();
         boolean checkBlockManagerServerId = blockManagerIdStr.compareTo(other.getBlockManagerIdStr()) == 0;
-        return checkHost && checkBlockManagerServerId;
+        return checkHost && checkPort && checkBlockManagerServerId;
     }
 }

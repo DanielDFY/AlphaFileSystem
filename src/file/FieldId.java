@@ -5,6 +5,8 @@ import id.Id;
 import java.io.Serializable;
 
 public class FieldId implements Id, Serializable {
+    private static final long serialVersionUID = -3629586781996666773L;
+
     private final String id;
 
     public FieldId(String id) {

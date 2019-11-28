@@ -1,26 +1,23 @@
 package file;
 
 import block.Block;
+import block.BlockClientId;
 import block.BlockId;
 import block.BlockManager;
 import block.BlockManagerClient;
-import block.BlockManagerClientId;
+import block.BlockManagerRMIId;
 import block.BlockManagerId;
 import block.BlockManagerServer;
 import block.IBlockManager;
 import constant.ConfigConstants;
 import constant.PathConstants;
+import id.Id;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,6 +68,7 @@ public class AlphaFile implements IFile, Serializable {
 
     private boolean isClient;
     private String hostName;
+    private int port;
 
     // create new file under given file manager
     public AlphaFile(AlphaFileManagerId fileManagerId, FieldId fieldId) {
@@ -107,13 +105,13 @@ public class AlphaFile implements IFile, Serializable {
         long newFileIdNum;
 
         try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+            RandomAccessFile input = new RandomAccessFile(file, "r");
 
             // read long-type file id
             byte[] bytes = new byte[Long.BYTES];
-            if (inputStream.read(bytes) != bytes.length)
+            if (input.read(bytes) != bytes.length)
                 throw new ErrorCode(ErrorCode.INVALID_FILE_ID);
-            inputStream.close();
+            input.close();
 
             // increase id count
             newFileIdNum = ByteUtils.bytesToLong(bytes) + 1;
@@ -123,10 +121,10 @@ public class AlphaFile implements IFile, Serializable {
 
         try {
             // update id count file
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(file));
+            RandomAccessFile output = new RandomAccessFile(file, "rwd");
             byte[] bytes = ByteUtils.longToBytes(newFileIdNum);
-            outputStream.write(bytes);
-            outputStream.close();
+            output.write(bytes);
+            output.close();
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         }
@@ -137,8 +135,8 @@ public class AlphaFile implements IFile, Serializable {
     // write serialized meta info into meta file
     private void writeMeta(Meta meta) {
         if (isClient) {
-            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
-            AlphaFileManagerClient fileManager = new AlphaFileManagerClient(fileManagerClientId);
+            AlphaFileManagerRMIId fileManagerClientId = new AlphaFileManagerRMIId(hostName, port, fileManagerId.getId());
+            AlphaFileManagerClient fileManager = AlphaFileManagerClient.getClient(fileManagerClientId);
             fileManager.writeRemoteFileMeta(fieldId, this);
         } else {
             IFileManager fileManager = new AlphaFileManagerServer(fileManagerId);
@@ -146,9 +144,10 @@ public class AlphaFile implements IFile, Serializable {
 
             try {
                 // write meta object into meta file
-                ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream(file));
-                outputStream.writeObject(meta);
-                outputStream.close();
+                RandomAccessFile output = new RandomAccessFile(file, "rwd");
+                byte[] metaStr = ByteUtils.objectToSerialize(meta);
+                output.write(metaStr);
+                output.close();
             } catch (IOException e) {
                 throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
             }
@@ -175,13 +174,16 @@ public class AlphaFile implements IFile, Serializable {
             for (BlockManagerId blockManagerId : logicBlockMap.keySet()) {
                 int iter = 0;
                 IBlockManager blockManager;
+                Id blockId;
                 if (isClient) {
-                    BlockManagerClientId blockManagerClientId = new BlockManagerClientId(hostName, blockManagerId.getId());
-                    blockManager = new BlockManagerClient(blockManagerClientId);
+                    BlockManagerRMIId blockManagerRMIId = new BlockManagerRMIId(hostName, port, blockManagerId.getId());
+                    blockManager = BlockManagerClient.getClient(blockManagerRMIId);
+                    blockId = new BlockClientId(logicBlockMap.get(blockManagerId).getId());
                 } else {
-                    blockManager = new BlockManagerServer(blockManagerId);
+                    blockManager = BlockManagerServer.getServer(blockManagerId);
+                    blockId = logicBlockMap.get(blockManagerId);
                 }
-                byte[] bytes = blockManager.getBlock(logicBlockMap.get(blockManagerId)).read();
+                byte[] bytes = blockManager.getBlock(blockId).read();
                 int startIndex = (i == blockStartNum) ? startOffset : 0;
                 for (int j = startIndex; j < bytes.length && iter < writeLength; ++j) {
                     bytes[j] = data[iter++] ;
@@ -199,8 +201,8 @@ public class AlphaFile implements IFile, Serializable {
     private Meta readMeta() {
         IFileManager fileManager;
         if (isClient) {
-            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
-            fileManager = new AlphaFileManagerClient(fileManagerClientId);
+            AlphaFileManagerRMIId fileManagerClientId = new AlphaFileManagerRMIId(hostName, port, fileManagerId.getId());
+            fileManager = AlphaFileManagerClient.getClient(fileManagerClientId);
         } else {
             fileManager = new AlphaFileManagerServer(fileManagerId);
         }
@@ -208,10 +210,12 @@ public class AlphaFile implements IFile, Serializable {
         File file = new File(fileManager.getPath(), fileId.getId() + PathConstants.META_SUFFIX);
 
         try {
-            ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(file));
-            Meta meta = (Meta)inputStream.readObject();
-            inputStream.close();
-            return meta;
+            RandomAccessFile input = new RandomAccessFile(file, "r");
+            long metaLength = input.length();
+            byte[] metaStr = new byte[(int) metaLength];
+            input.read(metaStr);
+            input.close();
+            return (Meta) ByteUtils.serializeToObject(metaStr);
         } catch (IOException e) {
             throw new ErrorCode(ErrorCode.IO_EXCEPTION, file.getPath());
         } catch (ClassNotFoundException e) {
@@ -239,14 +243,17 @@ public class AlphaFile implements IFile, Serializable {
 
                 try {
                     IBlockManager blockManager;
+                    Id blockId;
                     if (isClient) {
-                        BlockManagerClientId blockManagerClientId = new BlockManagerClientId(hostName, blockManagerId.getId());
-                        blockManager = new BlockManagerClient(blockManagerClientId);
+                        BlockManagerRMIId blockManagerRMIId = new BlockManagerRMIId(hostName, port, blockManagerId.getId());
+                        blockManager = BlockManagerClient.getClient(blockManagerRMIId);
+                        blockId = new BlockClientId(logicBlockMap.get(blockManagerId).getId());
                     } else {
-                        blockManager = new BlockManagerServer(blockManagerId);
+                        blockManager = BlockManagerServer.getServer(blockManagerId);
+                        blockId = logicBlockMap.get(blockManagerId);
                     }
 
-                    Block block = (Block) blockManager.getBlock(logicBlockMap.get(blockManagerId));
+                    Block block = (Block) blockManager.getBlock(blockId);
                     byte[] bytes = block.read();
                     int startIndex = (i == blockStartNum) ? startOffset : 0;
                     for (int j = startIndex; j < bytes.length && tempIter < readLength; ++j) {
@@ -288,8 +295,8 @@ public class AlphaFile implements IFile, Serializable {
     @Override
     public IFileManager getFileManager() {
         if (isClient) {
-            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
-            return new AlphaFileManagerClient(fileManagerClientId);
+            AlphaFileManagerRMIId fileManagerClientId = new AlphaFileManagerRMIId(hostName, port, fileManagerId.getId());
+            return AlphaFileManagerClient.getClient(fileManagerClientId);
         } else {
             return new AlphaFileManagerServer(fileManagerId);
         }
@@ -341,8 +348,8 @@ public class AlphaFile implements IFile, Serializable {
             throw new ErrorCode(ErrorCode.NEGATIVE_FILE_NEW_SIZE);
 
         if (isClient) {
-            AlphaFileManagerClientId fileManagerClientId = new AlphaFileManagerClientId(hostName, fileManagerId.getId());
-            AlphaFileManagerClient fileManager = new AlphaFileManagerClient(fileManagerClientId);
+            AlphaFileManagerRMIId fileManagerClientId = new AlphaFileManagerRMIId(hostName, port, fileManagerId.getId());
+            AlphaFileManagerClient fileManager = AlphaFileManagerClient.getClient(fileManagerClientId);
             meta = fileManager.setRemoteFileSize(fieldId, newSize).meta;
             return;
         }
@@ -386,13 +393,15 @@ public class AlphaFile implements IFile, Serializable {
         copyDst.close();
     }
 
-    public void setRemote(String hostName) {
+    public void setRemote(String hostName, int port) {
         this.isClient = true;
         this.hostName = hostName;
+        this.port = port;
     }
 
     public void setLocal() {
         this.isClient = false;
         this.hostName = null;
+        this.port = 0;
     }
 }

@@ -5,10 +5,9 @@ import id.Id;
 import util.ByteUtils;
 import util.ErrorCode;
 
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
 
 public class AlphaFileId implements Id, Serializable {
@@ -21,13 +20,13 @@ public class AlphaFileId implements Id, Serializable {
         long currentFileId;
 
         try {
-            BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+            RandomAccessFile input = new RandomAccessFile(file, "r");
 
             // read long-type block id
             byte[] bytes = new byte[Long.BYTES];
-            if (inputStream.read(bytes) != bytes.length)
+            if (input.read(bytes) != bytes.length)
                 throw new ErrorCode(ErrorCode.INVALID_BLOCK_ID);
-            inputStream.close();
+            input.close();
 
             // check id
             currentFileId = ByteUtils.bytesToLong(bytes);

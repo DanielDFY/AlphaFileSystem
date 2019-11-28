@@ -6,16 +6,21 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 
 public class BlockManagerRMI extends UnicastRemoteObject implements IBlockManagerRMI {
-    public BlockManagerRMI() throws RemoteException {
+    private BlockManagerRMIId id;
+
+    public BlockManagerRMI(BlockManagerRMIId id) throws RemoteException {
         super();
+        if (null == id)
+            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
+        this.id = id;
     }
 
     @Override
-    public IBlock getBlockRMI(String blockManagerIdStr, long blockIdNum) {
-        if (null == blockManagerIdStr || 0 == blockIdNum)
+    public IBlock getBlockRMI(long blockIdNum) {
+        if (0 == blockIdNum)
             throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
 
-        BlockManagerId blockManagerId = new BlockManagerId(blockManagerIdStr);
+        BlockManagerId blockManagerId = new BlockManagerId(id.getBlockManagerIdStr());
         IBlockManager blockManagerServer = BlockManagerServer.getServer(blockManagerId);
 
         BlockId blockId = new BlockId(blockIdNum);
@@ -24,25 +29,19 @@ public class BlockManagerRMI extends UnicastRemoteObject implements IBlockManage
     }
 
     @Override
-    public IBlock newBlockRMI(String blockManagerIdStr, byte[] b) {
+    public IBlock newBlockRMI(byte[] b) {
         if (null == b)
             throw new ErrorCode(ErrorCode.NULL_BLOCK_RMI_DATA_ARG);
 
-        if (null == blockManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
-
-        BlockManagerId blockManagerId = new BlockManagerId(blockManagerIdStr);
+        BlockManagerId blockManagerId = new BlockManagerId(id.getBlockManagerIdStr());
         IBlockManager blockManagerServer = BlockManagerServer.getServer(blockManagerId);
 
         return blockManagerServer.newBlock(b);
     }
 
     @Override
-    public String getPathRMI(String blockManagerIdStr) {
-        if (null == blockManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_BLOCK_MANAGER_RMI_ID_ARG);
-
-        BlockManagerId blockManagerId = new BlockManagerId(blockManagerIdStr);
+    public String getPathRMI() {
+        BlockManagerId blockManagerId = new BlockManagerId(id.getBlockManagerIdStr());
         IBlockManager blockManagerServer = BlockManagerServer.getServer(blockManagerId);
 
         return blockManagerServer.getPath();

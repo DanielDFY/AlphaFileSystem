@@ -7,86 +7,80 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 
 public class AlphaFileManagerRMI extends UnicastRemoteObject implements IFileManagerRMI {
-    public AlphaFileManagerRMI() throws RemoteException {
+    private AlphaFileManagerRMIId id;
+
+    public AlphaFileManagerRMI(AlphaFileManagerRMIId id) throws RemoteException {
         super();
+        if (null == id)
+            throw new ErrorCode(ErrorCode.NULL_FILE_RMI_MANAGER_ID_ARG);
+        this.id = id;
     }
 
     @Override
-    public IFile getFileRMI(String fileManagerIdStr, String fieldIdStr) {
-        if (null == fileManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_FILE_RMI_MANAGER_ID_ARG);
-        if ( null == fieldIdStr)
+    public IFile getFileRMI(FieldId fieldId) {
+        if (null == fieldId)
             throw new ErrorCode(ErrorCode.NULL_FILE_RMI_FIELD_ID_ARG);
 
-        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(fileManagerIdStr);
+        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(id.getFileManagerIdStr());
         IFileManager fileManagerServer = AlphaFileManagerServer.getServer(fileManagerId);
 
-        FieldId fieldId = new FieldId(fieldIdStr);
+        AlphaFile file = (AlphaFile) fileManagerServer.getFile(fieldId);
+        file.setRemote(ConfigConstants.RMI_SERVER_HOST, ConfigConstants.RMI_SERVER_PORT);
 
-        return fileManagerServer.getFile(fieldId);
+        return file;
     }
 
     @Override
-    public IFile newFileRMI(String fileManagerIdStr, String fieldIdStr) {
-        if (null == fileManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_FILE_RMI_MANAGER_ID_ARG);
-        if ( null == fieldIdStr)
+    public IFile newFileRMI(FieldId fieldId) {
+        if (null == fieldId)
             throw new ErrorCode(ErrorCode.NULL_FILE_RMI_FIELD_ID_ARG);
 
-        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(fileManagerIdStr);
+        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(id.getFileManagerIdStr());
         IFileManager fileManagerServer = AlphaFileManagerServer.getServer(fileManagerId);
 
-        FieldId fieldId = new FieldId(fieldIdStr);
+        AlphaFile file = (AlphaFile) fileManagerServer.newFile(fieldId);
+        file.setRemote(ConfigConstants.RMI_SERVER_HOST, ConfigConstants.RMI_SERVER_PORT);
 
-        return fileManagerServer.newFile(fieldId);
+        return file;
     }
 
     @Override
-    public String getPathRMI(String fileManagerIdStr) {
-        if (null == fileManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_FILE_RMI_MANAGER_ID_ARG);
-
-        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(fileManagerIdStr);
+    public String getPathRMI() {
+        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(id.getFileManagerIdStr());
         IFileManager fileManagerServer = AlphaFileManagerServer.getServer(fileManagerId);
 
         return fileManagerServer.getPath();
     }
 
     @Override
-    public AlphaFile setSizeRMI(String fileManagerIdStr, String fieldIdStr, long newSize) {
-        if (null == fileManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_FILE_RMI_MANAGER_ID_ARG);
-        if ( null == fieldIdStr)
+    public AlphaFile setSizeRMI(FieldId fieldId, long newSize) {
+        if ( null == fieldId)
             throw new ErrorCode(ErrorCode.NULL_FILE_RMI_FIELD_ID_ARG);
 
-        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(fileManagerIdStr);
+        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(id.getFileManagerIdStr());
         AlphaFileManagerServer fileManagerServer = AlphaFileManagerServer.getServer(fileManagerId);
 
-        FieldId fieldId = new FieldId(fieldIdStr);
         AlphaFile file = fileManagerServer.getFile(fieldId);
-
+        file.setLocal();
         file.setSize(newSize);
         file.close();
         fileManagerServer.updateCache(fieldId, file);
-        file.setRemote(ConfigConstants.RMI_SERVER_HOST);
+        file.setRemote(ConfigConstants.RMI_SERVER_HOST, ConfigConstants.RMI_SERVER_PORT);
 
         return file;
     }
 
     @Override
-    public void writeMetaRMI(String fileManagerIdStr, String fieldIdStr, IFile file) {
-        if (null == fileManagerIdStr)
-            throw new ErrorCode(ErrorCode.NULL_FILE_RMI_MANAGER_ID_ARG);
-        if (null == fieldIdStr)
+    public void writeMetaRMI(FieldId fieldId, IFile file) {
+        if (null == fieldId)
             throw new ErrorCode(ErrorCode.NULL_FILE_RMI_FIELD_ID_ARG);
         if (null == file)
             throw new ErrorCode(ErrorCode.NULL_FILE_RMI_FILE_ARG);
         if (file.getClass() != AlphaFile.class)
             throw new ErrorCode(ErrorCode.INVALID_FILE_RMI_FILE_ARG);
 
-        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(fileManagerIdStr);
+        AlphaFileManagerId fileManagerId = new AlphaFileManagerId(id.getFileManagerIdStr());
         AlphaFileManagerServer fileManagerServer = AlphaFileManagerServer.getServer(fileManagerId);
-        FieldId fieldId = new FieldId(fieldIdStr);
 
         AlphaFile alphaFile = (AlphaFile) file;
         alphaFile.setLocal();
